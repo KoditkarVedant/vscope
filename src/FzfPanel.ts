@@ -162,7 +162,7 @@ export class FzfPanel {
           <span>^u/d preview ↕</span>
           <span>^f/k preview ↔</span>
           <span>alt+,/. zoom pane</span>
-          <span>↵ open &nbsp;esc close</span>
+          <span>↵/dbl open &nbsp;esc close</span>
         </div>
         <div id="search-bar">
           <button id="mode-btn" title="Toggle between file search and live grep">files</button>

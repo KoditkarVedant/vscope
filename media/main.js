@@ -290,14 +290,12 @@ function buildRow(i) {
         }
     }
 
-    row.addEventListener('click', () => { selectedIdx = i; openSelected(); });
-    row.addEventListener('mouseover', () => {
-        if (selectedIdx !== i) {
-            selectedIdx = i;
-            virt.navigateTo(i);
-            schedulePreview();
-        }
+    row.addEventListener('click', () => {
+        selectedIdx = i;
+        virt.render();
+        schedulePreview();
     });
+    row.addEventListener('dblclick', () => { selectedIdx = i; openSelected(); });
 
     return row;
 }

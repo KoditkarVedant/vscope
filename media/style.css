@@ -170,19 +170,20 @@ body {
   box-sizing: border-box;
 }
 
-.result-row:hover,
+.result-row:hover {
+  background: var(--vscode-list-hoverBackground, rgba(90, 93, 94, 0.31));
+}
+
 .result-row.selected {
   background: var(--vscode-list-activeSelectionBackground, #094771);
   color: var(--vscode-list-activeSelectionForeground, #ffffff);
 }
 
-.result-row.selected .file-name,
-.result-row:hover .file-name {
+.result-row.selected .file-name {
   color: var(--vscode-list-activeSelectionForeground, #ffffff);
 }
 
-.result-row.selected .file-dir,
-.result-row:hover .file-dir {
+.result-row.selected .file-dir {
   color: var(--vscode-list-activeSelectionForeground, #ffffff);
   opacity: 0.7;
 }
@@ -283,8 +284,7 @@ body {
   font-weight: bold;
 }
 
-.result-row.selected .match,
-.result-row:hover .match {
+.result-row.selected .match {
   color: var(--vscode-list-activeSelectionHighlightForeground, var(--vscode-list-highlightForeground, #18a3ff));
 }
 
