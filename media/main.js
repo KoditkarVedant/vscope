@@ -311,7 +311,7 @@ searchInput.addEventListener('input', () => {
     clearTimeout(queryDebounce);
     queryDebounce = setTimeout(() => {
         vscode.postMessage({ type: 'query', value: searchInput.value });
-    }, 60);
+    }, mode === 'grep' ? 150 : 60);
 });
 
 searchInput.addEventListener('keydown', (e) => {

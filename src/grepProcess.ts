@@ -48,8 +48,10 @@ export function runGrep(
         emit();
     });
 
-    proc.on('close', () => emit(true));
-    proc.on('error', () => onChunk([]));
+    let cancelled = false;
 
-    return () => proc.kill();
+    proc.on('close', () => { if (!cancelled) emit(true); });
+    proc.on('error', () => { if (!cancelled) onChunk([]); });
+
+    return () => { cancelled = true; proc.kill(); };
 }
