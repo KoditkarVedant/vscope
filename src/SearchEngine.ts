@@ -8,6 +8,7 @@ export class SearchEngine {
     private _currentQuery = '';
     private _queryId = 0;
     private _cancelGrep: (() => void) | null = null;
+    private _fzfAbort: AbortController | null = null;
     private _mode: PanelMode;
 
     constructor(
@@ -75,8 +76,13 @@ export class SearchEngine {
             this._postBrowse(this._files);
             return;
         }
+        this._fzfAbort?.abort();
+        this._fzfAbort = new AbortController();
+        const { signal } = this._fzfAbort;
         const qid = ++this._queryId;
-        const results = await filterWithFzf(this._currentQuery, this._files);
+        const results = await filterWithFzf(this._currentQuery, this._files, signal);
+        if (signal.aborted || qid !== this._queryId) return;
+        this._fzfAbort = null;
         this._post({
             type: 'results',
             mode: 'files',
@@ -91,6 +97,8 @@ export class SearchEngine {
     cancelPending(): void {
         this._cancelGrep?.();
         this._cancelGrep = null;
+        this._fzfAbort?.abort();
+        this._fzfAbort = null;
     }
 
     private _postBrowse(files: string[]): void {
