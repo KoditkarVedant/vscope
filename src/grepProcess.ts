@@ -1,16 +1,6 @@
 import * as cp from 'child_process';
+import type { GrepMatch } from './messages';
 
-export interface GrepMatch {
-    file: string;
-    line: number;
-    col: number;
-    text: string;
-}
-
-/**
- * Streams ripgrep results for the given query.
- * Returns a cancel function to kill the process early (e.g. on next keystroke).
- */
 export function runGrep(
     query: string,
     workspaceRoot: string,
