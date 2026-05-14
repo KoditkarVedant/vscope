@@ -1,3 +1,9 @@
+# VS Code extension
+out/
+*.vsix
+.vscode-test/
+.claude/
+
 # Logs
 logs
 *.log
