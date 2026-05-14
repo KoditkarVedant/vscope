@@ -43,6 +43,14 @@ const previewBody  = /** @type {HTMLElement}         */ (document.getElementById
 const counter      = /** @type {HTMLElement}         */ (document.getElementById('counter'));
 const modeBtn      = /** @type {HTMLButtonElement}   */ (document.getElementById('mode-btn'));
 
+// Keep focus on the search input whenever the user clicks anywhere inside the
+// modal — prevents mode-switch and results clicks from stealing focus.
+document.getElementById('overlay').addEventListener('mousedown', (e) => {
+    if (e.target !== searchInput) e.preventDefault();
+});
+
+window.addEventListener('focus', () => searchInput.focus());
+
 // ── Virtualizer ───────────────────────────────────────────────────────────────
 // Only renders the rows visible in the scroll window plus a small buffer.
 // Row positions are set with absolute CSS so the spacer height drives the
