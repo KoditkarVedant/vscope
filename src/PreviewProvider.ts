@@ -9,6 +9,7 @@ import {
     type SpecialLanguage,
     type ThemedToken,
     type GrammarState,
+    type ThemeRegistrationRaw,
 } from 'shiki';
 import type { ToWebviewMessage } from './messages';
 import extToLang from './ext-to-lang.json';
@@ -55,6 +56,87 @@ function detectLanguage(filePath: string): BundledLanguage | SpecialLanguage {
 
     const lang = (extToLang as Record<string, string>)[ext];
     return (lang && BUNDLED_LANG_SET.has(lang) ? lang as BundledLanguage : 'plaintext');
+}
+
+// ── JSONC helpers ─────────────────────────────────────────────────────────────
+
+// Strips // and /* */ comments without mangling strings, then removes trailing commas.
+function stripJsonc(text: string): string {
+    let out = '';
+    let i   = 0;
+    while (i < text.length) {
+        if (text[i] === '"') {
+            out += '"';
+            i++;
+            while (i < text.length) {
+                if (text[i] === '\\') {
+                    out += text[i] + (text[i + 1] ?? '');
+                    i += 2;
+                } else if (text[i] === '"') {
+                    out += '"';
+                    i++;
+                    break;
+                } else {
+                    out += text[i++];
+                }
+            }
+        } else if (text[i] === '/' && text[i + 1] === '/') {
+            while (i < text.length && text[i] !== '\n') i++;
+        } else if (text[i] === '/' && text[i + 1] === '*') {
+            i += 2;
+            while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) i++;
+            i += 2;
+        } else {
+            out += text[i++];
+        }
+    }
+    return out.replace(/,(\s*[}\]])/g, '$1');
+}
+
+// ── Theme resolution ──────────────────────────────────────────────────────────
+
+type ThemeJson = ThemeRegistrationRaw & { include?: string; colors?: Record<string, string>; tokenColors?: unknown[] };
+
+function readThemeFile(filePath: string): ThemeJson | null {
+    try {
+        return JSON.parse(stripJsonc(fs.readFileSync(filePath, 'utf8'))) as ThemeJson;
+    } catch {
+        return null;
+    }
+}
+
+// Loads a theme JSON and merges one level of `include` (relative path sibling).
+function loadThemeJson(filePath: string): ThemeJson | null {
+    const obj = readThemeFile(filePath);
+    if (!obj) return null;
+
+    if (obj.include) {
+        const basePath = path.resolve(path.dirname(filePath), obj.include);
+        const base     = readThemeFile(basePath);
+        if (base) {
+            return {
+                ...base,
+                ...obj,
+                tokenColors: [...(base.tokenColors ?? []), ...(obj.tokenColors ?? [])],
+                colors:      { ...(base.colors      ?? {}), ...(obj.colors      ?? {}) },
+            };
+        }
+    }
+    return obj;
+}
+
+// Walks vscode.extensions.all looking for the theme whose label or id matches.
+function findThemeFilePath(themeName: string): string | null {
+    for (const ext of vscode.extensions.all) {
+        const themes: { label?: string; id?: string; path?: string }[] =
+            ext.packageJSON?.contributes?.themes ?? [];
+        for (const t of themes) {
+            if ((t.label === themeName || t.id === themeName) && t.path) {
+                return path.join(ext.extensionPath, t.path);
+            }
+        }
+    }
+    return null;
 }
 
 // ── HTML helpers ──────────────────────────────────────────────────────────────
@@ -108,14 +190,23 @@ interface FileCache {
 // ── PreviewProvider ───────────────────────────────────────────────────────────
 
 export class PreviewProvider {
-    private _debounce: NodeJS.Timeout | undefined;
-    private _cache = new Map<string, FileCache>();
+    private _debounce:      NodeJS.Timeout | undefined;
+    private _cache          = new Map<string, FileCache>();
+    private _loadedThemes   = new Set<string>();
+    private _themeListener: vscode.Disposable;
 
     constructor(
         private readonly _workspaceRoot: string,
         private readonly _post: (msg: ToWebviewMessage) => void
     ) {
         getHighlighter().catch(() => {});
+
+        // Invalidate cache whenever the user switches themes so the next
+        // preview request re-renders with the new colors.
+        this._themeListener = vscode.window.onDidChangeActiveColorTheme(() => {
+            this._loadedThemes.clear();
+            this._cache.clear();
+        });
     }
 
     schedule(relPath: string, line?: number): void {
@@ -133,6 +224,34 @@ export class PreviewProvider {
 
     dispose(): void {
         clearTimeout(this._debounce);
+        this._themeListener.dispose();
+    }
+
+    // Returns the Shiki theme name to use, loading the user's active VS Code
+    // theme from disk when possible and falling back to built-in dark/light.
+    private async _resolveTheme(): Promise<string> {
+        const themeName    = vscode.workspace.getConfiguration('workbench').get<string>('colorTheme') ?? '';
+        const kind         = vscode.window.activeColorTheme.kind;
+        const builtinTheme = (kind === vscode.ColorThemeKind.Light || kind === vscode.ColorThemeKind.HighContrastLight)
+            ? 'light-plus' : 'dark-plus';
+
+        if (!themeName) return builtinTheme;
+        if (this._loadedThemes.has(themeName)) return themeName;
+
+        const filePath = findThemeFilePath(themeName);
+        if (!filePath) return builtinTheme;
+
+        const themeJson = loadThemeJson(filePath);
+        if (!themeJson) return builtinTheme;
+
+        try {
+            const hl = await getHighlighter();
+            await hl.loadTheme({ ...themeJson, name: themeName });
+            this._loadedThemes.add(themeName);
+            return themeName;
+        } catch {
+            return builtinTheme;
+        }
     }
 
     private async _sendInitial(relPath: string, line?: number): Promise<void> {
@@ -152,9 +271,7 @@ export class PreviewProvider {
         }
 
         const hl    = await getHighlighter();
-        const kind  = vscode.window.activeColorTheme.kind;
-        const theme = (kind === vscode.ColorThemeKind.Light || kind === vscode.ColorThemeKind.HighContrastLight)
-            ? 'light-plus' : 'dark-plus';
+        const theme = await this._resolveTheme();
 
         let lang: BundledLanguage | SpecialLanguage = detectLanguage(relPath);
         if (lang !== 'plaintext' && !hl.getLoadedLanguages().includes(lang)) {
