@@ -42,14 +42,85 @@ const previewTitle = /** @type {HTMLElement}         */ (document.getElementById
 const previewBody  = /** @type {HTMLElement}         */ (document.getElementById('preview-body'));
 const counter      = /** @type {HTMLElement}         */ (document.getElementById('counter'));
 const modeBtn      = /** @type {HTMLButtonElement}   */ (document.getElementById('mode-btn'));
+const divider      = /** @type {HTMLElement}         */ (document.getElementById('divider'));
+const leftPane     = /** @type {HTMLElement}         */ (document.getElementById('left-pane'));
+const rightPane    = /** @type {HTMLElement}         */ (document.getElementById('right-pane'));
+const modal        = /** @type {HTMLElement}         */ (document.getElementById('modal'));
 
 // Keep focus on the search input whenever the user clicks anywhere inside the
 // modal — prevents mode-switch and results clicks from stealing focus.
 document.getElementById('overlay').addEventListener('mousedown', (e) => {
-    if (e.target !== searchInput) e.preventDefault();
+    if (e.target !== searchInput && !leftPane.classList.contains('hidden')) e.preventDefault();
 });
 
 window.addEventListener('focus', () => searchInput.focus());
+
+// ── Pane resize ───────────────────────────────────────────────────────────────
+
+let leftWidthPct = 38;
+/** @type {null | 'left' | 'right'} */
+let maximized = null;
+
+function setLeftWidth(pct) {
+    leftWidthPct = Math.max(15, Math.min(80, pct));
+    leftPane.style.width = `${leftWidthPct}%`;
+}
+
+function toggleMaximize(side) {
+    if (maximized === side) {
+        maximized = null;
+        leftPane.classList.remove('hidden');
+        rightPane.classList.remove('hidden');
+        divider.classList.remove('hidden');
+        leftPane.style.width = `${leftWidthPct}%`;
+        searchInput.focus();
+    } else {
+        maximized = side;
+        if (side === 'left') {
+            rightPane.classList.add('hidden');
+            divider.classList.add('hidden');
+            leftPane.classList.remove('hidden');
+            leftPane.style.width = '100%';
+            searchInput.focus();
+        } else {
+            leftPane.classList.add('hidden');
+            divider.classList.add('hidden');
+            rightPane.classList.remove('hidden');
+        }
+    }
+}
+
+divider.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    const startX     = e.clientX;
+    const startWidth = leftPane.getBoundingClientRect().width;
+    const totalWidth = modal.getBoundingClientRect().width;
+
+    divider.classList.add('dragging');
+    document.body.style.cursor     = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    function onMove(e) { setLeftWidth(((startWidth + e.clientX - startX) / totalWidth) * 100); }
+    function onUp()   {
+        divider.classList.remove('dragging');
+        document.body.style.cursor     = '';
+        document.body.style.userSelect = '';
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup',   onUp);
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup',   onUp);
+});
+
+function resetPanes() {
+    maximized = null;
+    leftPane.classList.remove('hidden');
+    rightPane.classList.remove('hidden');
+    divider.classList.remove('hidden');
+    setLeftWidth(38);
+}
+
+divider.addEventListener('dblclick', resetPanes);
 
 // ── Virtualizer ───────────────────────────────────────────────────────────────
 // Only renders the rows visible in the scroll window plus a small buffer.
@@ -189,10 +260,19 @@ searchInput.addEventListener('input', () => {
 });
 
 searchInput.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowDown')       { e.preventDefault(); move(1); }
-    else if (e.key === 'ArrowUp')    { e.preventDefault(); move(-1); }
-    else if (e.key === 'Enter')      { e.preventDefault(); openSelected(); }
-    else if (e.key === 'Escape')     { vscode.postMessage({ type: 'close' }); }
+    if (e.key === 'ArrowDown')  { e.preventDefault(); move(1); }
+    else if (e.key === 'ArrowUp')   { e.preventDefault(); move(-1); }
+    else if (e.key === 'Enter')     { e.preventDefault(); openSelected(); }
+});
+
+window.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    if (maximized) {
+        resetPanes();
+        searchInput.focus();
+    } else {
+        vscode.postMessage({ type: 'close' });
+    }
 });
 
 // ── Messages from extension ───────────────────────────────────────────────────
@@ -255,6 +335,8 @@ window.addEventListener('message', ({ data: msg }) => {
             case 'previewUp':    scrollPreviewY(-previewBody.clientHeight * 0.5); break;
             case 'previewLeft':  scrollPreviewX(-previewBody.clientWidth  * 0.5); break;
             case 'previewRight': scrollPreviewX( previewBody.clientWidth  * 0.5); break;
+            case 'zoomLeft':     toggleMaximize('left');  break;
+            case 'zoomRight':    toggleMaximize('right'); break;
         }
     }
 });

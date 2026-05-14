@@ -49,7 +49,25 @@ body {
   flex-direction: column;
   width: 38%;
   min-width: 260px;
-  border-right: 1px solid var(--vscode-panel-border, #454545);
+}
+
+#divider {
+  width: 4px;
+  flex-shrink: 0;
+  cursor: col-resize;
+  background: var(--vscode-panel-border, #454545);
+  transition: background 0.15s;
+}
+
+#divider:hover,
+#divider.dragging {
+  background: var(--vscode-focusBorder, #007fd4);
+}
+
+#left-pane.hidden,
+#right-pane.hidden,
+#divider.hidden {
+  display: none;
 }
 
 #search-bar {

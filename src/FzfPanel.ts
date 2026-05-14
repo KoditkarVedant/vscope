@@ -161,6 +161,7 @@ export class FzfPanel {
           <span>^n ↓ &nbsp;^p ↑</span>
           <span>^u/d preview ↕</span>
           <span>^f/k preview ↔</span>
+          <span>alt+,/. zoom pane</span>
           <span>↵ open &nbsp;esc close</span>
         </div>
         <div id="search-bar">
@@ -175,6 +176,7 @@ export class FzfPanel {
           <span id="counter"></span>
         </div>
       </div>
+      <div id="divider"></div>
       <div id="right-pane">
         <div id="preview-title"></div>
         <div id="preview-body"></div>

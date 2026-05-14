@@ -68,6 +68,18 @@
         "args": "previewRight",
         "key": "ctrl+k",
         "when": "vscope.active"
+      },
+      {
+        "command": "vscope.keydown",
+        "args": "zoomLeft",
+        "key": "alt+,",
+        "when": "vscope.active"
+      },
+      {
+        "command": "vscope.keydown",
+        "args": "zoomRight",
+        "key": "alt+.",
+        "when": "vscope.active"
       }
     ]
   },
