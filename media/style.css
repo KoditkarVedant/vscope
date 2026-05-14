@@ -83,6 +83,26 @@ body {
   color: var(--vscode-input-placeholderForeground, #767676);
 }
 
+#mode-btn {
+  flex-shrink: 0;
+  background: var(--vscode-badge-background, #4d4d4d);
+  color: var(--vscode-badge-foreground, #cccccc);
+  border: none;
+  border-radius: 3px;
+  padding: 2px 7px;
+  font-size: 10px;
+  font-family: inherit;
+  cursor: pointer;
+  line-height: 18px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+#mode-btn:hover {
+  background: var(--vscode-list-activeSelectionBackground, #094771);
+  color: var(--vscode-list-activeSelectionForeground, #fff);
+}
+
 #counter {
   flex-shrink: 0;
   font-size: 11px;
@@ -124,10 +144,12 @@ body {
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 5px 12px;
+  height: 28px;
+  padding: 0 12px;
   cursor: pointer;
   white-space: nowrap;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 .result-row:hover,
@@ -213,4 +235,36 @@ body {
 #preview-body::-webkit-scrollbar-thumb {
   background: var(--vscode-scrollbarSlider-background, #424242);
   border-radius: 3px;
+}
+
+/* ── Grep result rows ─────────────────────────────────────────────────────── */
+
+.grep-loc {
+  flex-shrink: 0;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 11px;
+  color: var(--vscode-terminal-ansiBrightCyan, #4ec9b0);
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.grep-text {
+  flex: 1;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--vscode-editor-foreground, #cccccc);
+}
+
+.result-row.selected .grep-loc,
+.result-row:hover .grep-loc {
+  color: var(--vscode-list-activeSelectionForeground, #fff);
+  opacity: 0.8;
+}
+
+.result-row.selected .grep-text,
+.result-row:hover .grep-text {
+  color: var(--vscode-list-activeSelectionForeground, #fff);
 }

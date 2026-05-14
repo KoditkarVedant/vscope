@@ -3,121 +3,118 @@
 
 const vscode = acquireVsCodeApi();
 
+// ── Constants ─────────────────────────────────────────────────────────────────
+
+const ITEM_HEIGHT = 28; // must match .result-row height in style.css
+const BUFFER      = 8;  // extra rows rendered above/below the visible window
+
+// ── State ─────────────────────────────────────────────────────────────────────
+
+/** @type {'files' | 'grep'} */
+let mode = 'files';
+
 /** @type {string[]} */
 let results = [];
-let selectedIdx = 0;
+
+/** @type {Array<{file:string, line:number, col:number, text:string}>} */
+let grepMatches = [];
+
+let selectedIdx  = 0;
+let lastQueryId  = -1;
+
 /** @type {ReturnType<typeof setTimeout> | null} */
-let queryDebounce = null;
+let queryDebounce   = null;
 /** @type {ReturnType<typeof setTimeout> | null} */
 let previewDebounce = null;
 
-const searchInput  = /** @type {HTMLInputElement} */ (document.getElementById('search-input'));
-const resultsList  = /** @type {HTMLElement} */ (document.getElementById('results'));
-const previewTitle = /** @type {HTMLElement} */ (document.getElementById('preview-title'));
-const previewBody  = /** @type {HTMLElement} */ (document.getElementById('preview-body'));
-const counter      = /** @type {HTMLElement} */ (document.getElementById('counter'));
+// ── DOM refs ──────────────────────────────────────────────────────────────────
 
-// ── Input: send debounced query to extension ──────────────────────────────────
+const searchInput  = /** @type {HTMLInputElement}   */ (document.getElementById('search-input'));
+const resultsList  = /** @type {HTMLElement}         */ (document.getElementById('results'));
+const previewTitle = /** @type {HTMLElement}         */ (document.getElementById('preview-title'));
+const previewBody  = /** @type {HTMLElement}         */ (document.getElementById('preview-body'));
+const counter      = /** @type {HTMLElement}         */ (document.getElementById('counter'));
+const modeBtn      = /** @type {HTMLButtonElement}   */ (document.getElementById('mode-btn'));
 
-searchInput.addEventListener('input', () => {
-    clearTimeout(queryDebounce);
-    queryDebounce = setTimeout(() => {
-        vscode.postMessage({ type: 'query', value: searchInput.value });
-    }, 60);
-});
+// ── Virtualizer ───────────────────────────────────────────────────────────────
+// Only renders the rows visible in the scroll window plus a small buffer.
+// Row positions are set with absolute CSS so the spacer height drives the
+// scrollbar, not the actual DOM nodes.
 
-// ── Keyboard shortcuts ────────────────────────────────────────────────────────
-//
-//   Conflicting keys (Ctrl+J/N/P/D/U/F/K) are intercepted by VS Code via
-//   keybinding overrides in package.json and arrive here as 'nav' messages.
-//   Non-conflicting keys are handled directly below.
+const spacer = document.createElement('div');
+spacer.style.cssText = 'position:relative;width:100%;';
+resultsList.appendChild(spacer);
 
-searchInput.addEventListener('keydown', (e) => {
-    if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        move(1);
-    } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        move(-1);
-    } else if (e.key === 'Enter') {
-        e.preventDefault();
-        openSelected();
-    } else if (e.key === 'Escape') {
-        vscode.postMessage({ type: 'close' });
-    }
-});
+const virt = {
+    count: 0,
 
-// ── Messages from extension ───────────────────────────────────────────────────
+    /** Call after results array changes. */
+    setCount(n) {
+        this.count = n;
+        spacer.style.height = `${n * ITEM_HEIGHT}px`;
+        this.render();
+    },
 
-window.addEventListener('message', (event) => {
-    const msg = event.data;
-    if (msg.type === 'results') {
-        results = msg.files;
-        selectedIdx = 0;           // always highlight the first match
-        counter.textContent = msg.filtered
-            ? `${results.length} / ${msg.total}`
-            : `${msg.total} files`;
-        renderList();
-        schedulePreview();
-    } else if (msg.type === 'previewContent') {
-        previewTitle.textContent = msg.file;
-        previewBody.textContent = msg.content;
-        previewBody.scrollTop = 0;
-    } else if (msg.type === 'nav') {
-        switch (msg.action) {
-            case 'moveDown':    move(1); break;
-            case 'moveUp':      move(-1); break;
-            case 'previewDown': scrollPreviewY(previewBody.clientHeight * 0.5); break;
-            case 'previewUp':   scrollPreviewY(-previewBody.clientHeight * 0.5); break;
-            case 'previewLeft': scrollPreviewX(-previewBody.clientWidth * 0.5); break;
-            case 'previewRight':scrollPreviewX(previewBody.clientWidth * 0.5); break;
+    /** Navigate to index: scroll if needed, then re-render. */
+    navigateTo(index) {
+        const top    = index * ITEM_HEIGHT;
+        const bottom = top + ITEM_HEIGHT;
+        const { scrollTop, clientHeight } = resultsList;
+        if (top < scrollTop) {
+            resultsList.scrollTop = top;
+        } else if (bottom > scrollTop + clientHeight) {
+            resultsList.scrollTop = bottom - clientHeight;
         }
-    }
-});
+        this.render();
+    },
 
-// ── Navigation ────────────────────────────────────────────────────────────────
+    render() {
+        const { scrollTop, clientHeight } = resultsList;
+        const start = Math.max(0, Math.floor(scrollTop / ITEM_HEIGHT) - BUFFER);
+        const end   = Math.min(this.count, Math.ceil((scrollTop + clientHeight) / ITEM_HEIGHT) + BUFFER);
 
-function move(delta) {
-    if (results.length === 0) return;
-    selectedIdx = Math.max(0, Math.min(results.length - 1, selectedIdx + delta));
-    renderList();
-    schedulePreview();
-}
-
-function openSelected() {
-    if (results[selectedIdx]) {
-        vscode.postMessage({ type: 'select', file: results[selectedIdx] });
-    }
-}
-
-function schedulePreview() {
-    clearTimeout(previewDebounce);
-    previewDebounce = setTimeout(() => {
-        if (results[selectedIdx]) {
-            vscode.postMessage({ type: 'preview', file: results[selectedIdx] });
+        const frag = document.createDocumentFragment();
+        for (let i = start; i < end; i++) {
+            const row = buildRow(i);
+            row.style.cssText =
+                `position:absolute;top:${i * ITEM_HEIGHT}px;left:0;right:0;height:${ITEM_HEIGHT}px;`;
+            frag.appendChild(row);
         }
-    }, 80);
-}
+        spacer.innerHTML = '';
+        spacer.appendChild(frag);
+    },
+};
 
-function scrollPreviewY(px) {
-    previewBody.scrollTop += px;
-}
+resultsList.addEventListener('scroll', () => virt.render(), { passive: true });
 
-function scrollPreviewX(px) {
-    previewBody.scrollLeft += px;
-}
+// ── Row builder ───────────────────────────────────────────────────────────────
 
-// ── Rendering ─────────────────────────────────────────────────────────────────
+function buildRow(i) {
+    const row = document.createElement('div');
+    row.className = 'result-row' + (i === selectedIdx ? ' selected' : '');
 
-function renderList() {
-    resultsList.innerHTML = '';
-    if (results.length === 0) return;
+    if (mode === 'grep') {
+        const m = grepMatches[i];
 
-    const fragment = document.createDocumentFragment();
+        const loc = document.createElement('span');
+        loc.className = 'grep-loc';
+        loc.textContent = `${basename(m.file)}:${m.line}`;
+        row.appendChild(loc);
 
-    results.forEach((file, i) => {
-        const row = document.createElement('div');
-        row.className = 'result-row' + (i === selectedIdx ? ' selected' : '');
+        const text = document.createElement('span');
+        text.className = 'grep-text';
+        text.textContent = m.text.trimStart();
+        row.appendChild(text);
+
+        const dir = dirPart(m.file);
+        if (dir) {
+            const d = document.createElement('span');
+            d.className = 'file-dir';
+            d.textContent = dir;
+            row.appendChild(d);
+        }
+    } else {
+        const file = results[i];
 
         const ext = extBadge(file);
         if (ext) {
@@ -134,52 +131,171 @@ function renderList() {
 
         const dir = dirPart(file);
         if (dir) {
-            const dirSpan = document.createElement('span');
-            dirSpan.className = 'file-dir';
-            dirSpan.textContent = dir;
-            row.appendChild(dirSpan);
+            const d = document.createElement('span');
+            d.className = 'file-dir';
+            d.textContent = dir;
+            row.appendChild(d);
         }
+    }
 
-        row.addEventListener('click', () => {
+    row.addEventListener('click', () => { selectedIdx = i; openSelected(); });
+    row.addEventListener('mouseover', () => {
+        if (selectedIdx !== i) {
             selectedIdx = i;
-            openSelected();
-        });
-
-        row.addEventListener('mouseover', () => {
-            if (selectedIdx !== i) {
-                selectedIdx = i;
-                renderList();
-                schedulePreview();
-            }
-        });
-
-        fragment.appendChild(row);
+            virt.navigateTo(i);
+            schedulePreview();
+        }
     });
 
-    resultsList.appendChild(fragment);
-
-    // Keep the selected row visible without jumping
-    const sel = resultsList.querySelector('.selected');
-    if (sel) sel.scrollIntoView({ block: 'nearest' });
+    return row;
 }
+
+// ── Input ─────────────────────────────────────────────────────────────────────
+
+modeBtn.addEventListener('click', () => {
+    vscode.postMessage({ type: 'toggleMode' });
+    searchInput.focus();
+});
+
+searchInput.addEventListener('input', () => {
+    clearTimeout(queryDebounce);
+    queryDebounce = setTimeout(() => {
+        vscode.postMessage({ type: 'query', value: searchInput.value });
+    }, 60);
+});
+
+searchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowDown')       { e.preventDefault(); move(1); }
+    else if (e.key === 'ArrowUp')    { e.preventDefault(); move(-1); }
+    else if (e.key === 'Enter')      { e.preventDefault(); openSelected(); }
+    else if (e.key === 'Escape')     { vscode.postMessage({ type: 'close' }); }
+});
+
+// ── Messages from extension ───────────────────────────────────────────────────
+
+window.addEventListener('message', ({ data: msg }) => {
+    if (msg.type === 'setMode') {
+        applyMode(msg.mode);
+
+    } else if (msg.type === 'results') {
+        const isNewQuery = msg.queryId !== lastQueryId;
+        lastQueryId = msg.queryId;
+
+        if (mode !== msg.mode) applyMode(msg.mode);
+
+        if (msg.mode === 'grep') {
+            grepMatches = msg.matches;
+            counter.textContent = `${msg.total} matches`;
+        } else {
+            results = msg.files;
+            counter.textContent = msg.filtered
+                ? `${results.length} / ${msg.total}`
+                : `${msg.total} files`;
+        }
+
+        // Only jump to top when a genuinely new query starts
+        if (isNewQuery) {
+            selectedIdx = 0;
+            resultsList.scrollTop = 0;
+        }
+
+        virt.setCount(listLength());
+        schedulePreview();
+
+    } else if (msg.type === 'previewContent') {
+        previewTitle.textContent = msg.file;
+        previewBody.textContent  = msg.content;
+        if (msg.line) {
+            const lh = parseFloat(getComputedStyle(previewBody).lineHeight) || 20;
+            previewBody.scrollTop = Math.max(0, (msg.line - 1) * lh - previewBody.clientHeight / 3);
+        } else {
+            previewBody.scrollTop = 0;
+        }
+
+    } else if (msg.type === 'nav') {
+        switch (msg.action) {
+            case 'moveDown':     move(1); break;
+            case 'moveUp':       move(-1); break;
+            case 'previewDown':  scrollPreviewY( previewBody.clientHeight * 0.5); break;
+            case 'previewUp':    scrollPreviewY(-previewBody.clientHeight * 0.5); break;
+            case 'previewLeft':  scrollPreviewX(-previewBody.clientWidth  * 0.5); break;
+            case 'previewRight': scrollPreviewX( previewBody.clientWidth  * 0.5); break;
+        }
+    }
+});
+
+// ── Mode ──────────────────────────────────────────────────────────────────────
+
+function applyMode(newMode) {
+    mode = newMode;
+    modeBtn.textContent = mode;
+    searchInput.value = '';
+    searchInput.placeholder = mode === 'grep' ? 'Search content...' : 'Search files...';
+    results = [];
+    grepMatches = [];
+    selectedIdx = 0;
+    lastQueryId = -1;
+    counter.textContent = '';
+    spacer.innerHTML = '';
+    spacer.style.height = '0';
+    previewTitle.textContent = '';
+    previewBody.textContent = '';
+    searchInput.focus();
+}
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+
+function listLength() {
+    return mode === 'grep' ? grepMatches.length : results.length;
+}
+
+function move(delta) {
+    if (listLength() === 0) return;
+    const next = Math.max(0, Math.min(listLength() - 1, selectedIdx + delta));
+    if (next !== selectedIdx) {
+        selectedIdx = next;
+        virt.navigateTo(next);
+        schedulePreview();
+    }
+}
+
+function openSelected() {
+    if (mode === 'grep') {
+        const m = grepMatches[selectedIdx];
+        if (m) vscode.postMessage({ type: 'select', file: m.file, line: m.line, col: m.col });
+    } else {
+        if (results[selectedIdx]) vscode.postMessage({ type: 'select', file: results[selectedIdx] });
+    }
+}
+
+function schedulePreview() {
+    clearTimeout(previewDebounce);
+    previewDebounce = setTimeout(() => {
+        if (mode === 'grep') {
+            const m = grepMatches[selectedIdx];
+            if (m) vscode.postMessage({ type: 'preview', file: m.file, line: m.line });
+        } else {
+            if (results[selectedIdx]) vscode.postMessage({ type: 'preview', file: results[selectedIdx] });
+        }
+    }, 80);
+}
+
+function scrollPreviewY(px) { previewBody.scrollTop  += px; }
+function scrollPreviewX(px) { previewBody.scrollLeft += px; }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function basename(p) {
-    return p.split('/').pop() || p;
-}
-
+function basename(p) { return p.split('/').pop() || p; }
 function dirPart(p) {
     const parts = p.split('/');
     return parts.length > 1 ? parts.slice(0, -1).join('/') : '';
 }
-
 function extBadge(p) {
     const name = basename(p);
-    const dot = name.lastIndexOf('.');
+    const dot  = name.lastIndexOf('.');
     if (dot < 1) return '';
     return name.slice(dot + 1).toLowerCase().slice(0, 5);
 }
 
-// autofocus can be unreliable in webviews
+vscode.postMessage({ type: 'ready' });
 searchInput.focus();
