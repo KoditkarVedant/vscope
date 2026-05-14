@@ -33,8 +33,8 @@ body {
 
 #modal {
   display: flex;
-  width: 84vw;
-  height: 76vh;
+  width: 92vw;
+  height: 94vh;
   background: var(--vscode-sideBar-background, #252526);
   border: 1px solid var(--vscode-panel-border, #454545);
   border-radius: 8px;
