@@ -259,7 +259,7 @@ body {
 /* Each chunk is a .shiki <pre>; stack them seamlessly */
 #preview-body .shiki {
   margin: 0;
-  padding: 0 16px;
+  padding: 0 16px 0 0;
   min-width: max-content;
   font-family: inherit;
   font-size: inherit;
@@ -269,6 +269,20 @@ body {
 
 #preview-body .shiki:first-child { padding-top: 12px; }
 #preview-body .shiki:last-child  { padding-bottom: 12px; min-height: 100%; }
+
+/* Line numbers via data-line attribute — no HTML changes needed */
+#preview-body code > span[data-line]::before {
+  content: attr(data-line);
+  display: inline-block;
+  width: 3em;
+  padding-left: 0.75em;
+  padding-right: 1.5em;
+  text-align: right;
+  color: var(--vscode-editorLineNumber-foreground, #858585);
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
 
 #preview-body .shiki code {
   font-family: inherit;
