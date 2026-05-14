@@ -22,8 +22,8 @@ export type FromWebviewMessage =
 
 export type ToWebviewMessage =
     | { type: 'setMode';        mode: PanelMode }
-    | { type: 'results';        mode: 'files'; files: string[]; total: number; filtered: boolean; queryId: number }
-    | { type: 'results';        mode: 'grep';  matches: GrepMatch[]; total: number; queryId: number }
+    | { type: 'results';        mode: 'files'; files: string[]; total: number; filtered: boolean; queryId: number; query: string }
+    | { type: 'results';        mode: 'grep';  matches: GrepMatch[]; total: number; queryId: number; query: string }
     | { type: 'previewContent'; file: string; html: string; totalChunks: number; loadedChunks: number; line?: number }
     | { type: 'previewChunk';   file: string; html: string; chunkIndex: number }
     | { type: 'nav';            action: string };

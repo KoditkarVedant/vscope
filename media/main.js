@@ -21,6 +21,7 @@ let grepMatches = [];
 
 let selectedIdx  = 0;
 let lastQueryId  = -1;
+let currentQuery = '';
 
 // ── Preview chunk state ───────────────────────────────────────────────────────
 
@@ -182,6 +183,57 @@ previewBody.addEventListener('scroll', () => {
     }
 }, { passive: true });
 
+// ── Highlight helpers ─────────────────────────────────────────────────────────
+
+function escHtml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// Returns indices in str that greedily match the characters of query in order.
+function fuzzyPositions(query, str) {
+    const q = query.toLowerCase();
+    const s = str.toLowerCase();
+    const positions = [];
+    let si = 0;
+    for (let qi = 0; qi < q.length; qi++) {
+        const idx = s.indexOf(q[qi], si);
+        if (idx === -1) return [];
+        positions.push(idx);
+        si = idx + 1;
+    }
+    return positions;
+}
+
+// Wraps matched positions in <span class="match">, grouping consecutive runs.
+function highlightChars(str, positions) {
+    if (!positions.length) return escHtml(str);
+    const posSet = new Set(positions);
+    let html = '';
+    let inMatch = false;
+    for (let i = 0; i < str.length; i++) {
+        const ch = escHtml(str[i]);
+        if (posSet.has(i)) {
+            if (!inMatch) { html += '<span class="match">'; inMatch = true; }
+            html += ch;
+        } else {
+            if (inMatch)  { html += '</span>'; inMatch = false; }
+            html += ch;
+        }
+    }
+    if (inMatch) html += '</span>';
+    return html;
+}
+
+// Highlights the first occurrence of query as a substring (for grep results).
+function highlightSubstring(str, query) {
+    if (!query) return escHtml(str);
+    const idx = str.toLowerCase().indexOf(query.toLowerCase());
+    if (idx === -1) return escHtml(str);
+    return escHtml(str.slice(0, idx))
+        + `<span class="match">${escHtml(str.slice(idx, idx + query.length))}</span>`
+        + escHtml(str.slice(idx + query.length));
+}
+
 // ── Row builder ───────────────────────────────────────────────────────────────
 
 function buildRow(i) {
@@ -198,7 +250,7 @@ function buildRow(i) {
 
         const text = document.createElement('span');
         text.className = 'grep-text';
-        text.textContent = m.text.trimStart();
+        text.innerHTML = highlightSubstring(m.text.trimStart(), currentQuery);
         row.appendChild(text);
 
         const dir = dirPart(m.file);
@@ -219,16 +271,21 @@ function buildRow(i) {
             row.appendChild(badge);
         }
 
+        const positions  = fuzzyPositions(currentQuery, file);
+        const nameStart  = file.lastIndexOf('/') + 1;
+        const namePosns  = positions.filter(p => p >= nameStart).map(p => p - nameStart);
+        const dirPosns   = positions.filter(p => p < nameStart);
+
         const name = document.createElement('span');
         name.className = 'file-name';
-        name.textContent = basename(file);
+        name.innerHTML = highlightChars(basename(file), namePosns);
         row.appendChild(name);
 
         const dir = dirPart(file);
         if (dir) {
             const d = document.createElement('span');
             d.className = 'file-dir';
-            d.textContent = dir;
+            d.innerHTML = highlightChars(dir, dirPosns);
             row.appendChild(d);
         }
     }
@@ -283,7 +340,8 @@ window.addEventListener('message', ({ data: msg }) => {
 
     } else if (msg.type === 'results') {
         const isNewQuery = msg.queryId !== lastQueryId;
-        lastQueryId = msg.queryId;
+        lastQueryId  = msg.queryId;
+        currentQuery = msg.query;
 
         if (mode !== msg.mode) applyMode(msg.mode);
 

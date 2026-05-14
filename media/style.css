@@ -108,10 +108,10 @@ body {
   border: none;
   border-radius: 3px;
   padding: 2px 7px;
-  font-size: 10px;
+  font-size: 0.77em;
   font-family: inherit;
   cursor: pointer;
-  line-height: 18px;
+  line-height: 1.5;
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
@@ -123,7 +123,7 @@ body {
 
 #counter {
   flex-shrink: 0;
-  font-size: 11px;
+  font-size: 0.85em;
   color: var(--vscode-descriptionForeground, #858585);
   white-space: nowrap;
 }
@@ -149,7 +149,7 @@ body {
   display: flex;
   gap: 14px;
   padding: 5px 12px;
-  font-size: 10px;
+  font-size: 0.77em;
   color: var(--vscode-descriptionForeground, #858585);
   border-top: 1px solid var(--vscode-panel-border, #454545);
   flex-shrink: 0;
@@ -176,6 +176,11 @@ body {
   color: var(--vscode-list-activeSelectionForeground, #ffffff);
 }
 
+.result-row.selected .file-name,
+.result-row:hover .file-name {
+  color: var(--vscode-list-activeSelectionForeground, #ffffff);
+}
+
 .result-row.selected .file-dir,
 .result-row:hover .file-dir {
   color: var(--vscode-list-activeSelectionForeground, #ffffff);
@@ -184,7 +189,7 @@ body {
 
 .ext-badge {
   flex-shrink: 0;
-  font-size: 10px;
+  font-size: 0.77em;
   font-family: var(--vscode-editor-font-family, monospace);
   background: var(--vscode-badge-background, #4d4d4d);
   color: var(--vscode-badge-foreground, #cccccc);
@@ -196,16 +201,16 @@ body {
 }
 
 .file-name {
-  font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
   flex-shrink: 0;
   max-width: 55%;
+  color: var(--vscode-foreground, #e0e0e0);
 }
 
 .file-dir {
   color: var(--vscode-descriptionForeground, #858585);
-  font-size: 11px;
+  font-size: 0.85em;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -221,7 +226,7 @@ body {
 
 #preview-title {
   padding: 10px 14px;
-  font-size: 11px;
+  font-size: 0.85em;
   color: var(--vscode-descriptionForeground, #858585);
   border-bottom: 1px solid var(--vscode-panel-border, #454545);
   white-space: nowrap;
@@ -271,12 +276,24 @@ body {
 }
 
 
+/* ── Match highlight ──────────────────────────────────────────────────────── */
+
+.match {
+  color: var(--vscode-list-highlightForeground, #18a3ff);
+  font-weight: bold;
+}
+
+.result-row.selected .match,
+.result-row:hover .match {
+  color: var(--vscode-list-activeSelectionHighlightForeground, var(--vscode-list-highlightForeground, #18a3ff));
+}
+
 /* ── Grep result rows ─────────────────────────────────────────────────────── */
 
 .grep-loc {
   flex-shrink: 0;
   font-family: var(--vscode-editor-font-family, monospace);
-  font-size: 11px;
+  font-size: 0.85em;
   color: var(--vscode-terminal-ansiBrightCyan, #4ec9b0);
   white-space: nowrap;
   min-width: 0;
@@ -285,7 +302,7 @@ body {
 .grep-text {
   flex: 1;
   font-family: var(--vscode-editor-font-family, monospace);
-  font-size: 11px;
+  font-size: 0.85em;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

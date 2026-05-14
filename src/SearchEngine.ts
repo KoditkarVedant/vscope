@@ -43,7 +43,7 @@ export class SearchEngine {
         if (mode === 'files') {
             this._postBrowse(this._files);
         } else {
-            this._post({ type: 'results', mode: 'grep', matches: [], total: 0, queryId: ++this._queryId });
+            this._post({ type: 'results', mode: 'grep', matches: [], total: 0, queryId: ++this._queryId, query: '' });
         }
     }
 
@@ -54,7 +54,7 @@ export class SearchEngine {
             this._cancelGrep?.();
             this._cancelGrep = null;
             if (!this._currentQuery) {
-                this._post({ type: 'results', mode: 'grep', matches: [], total: 0, queryId: ++this._queryId });
+                this._post({ type: 'results', mode: 'grep', matches: [], total: 0, queryId: ++this._queryId, query: '' });
                 return;
             }
             const qid = ++this._queryId;
@@ -65,6 +65,7 @@ export class SearchEngine {
                     matches: matches.slice(0, 1000),
                     total: matches.length,
                     queryId: qid,
+                    query: this._currentQuery,
                 });
             });
             return;
@@ -83,6 +84,7 @@ export class SearchEngine {
             total: this._files.length,
             filtered: true,
             queryId: qid,
+            query: this._currentQuery,
         });
     }
 
@@ -99,6 +101,7 @@ export class SearchEngine {
             total: files.length,
             filtered: false,
             queryId: 0,
+            query: '',
         });
     }
 }
