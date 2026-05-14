@@ -23,5 +23,5 @@ export type ToWebviewMessage =
     | { type: 'setMode';        mode: PanelMode }
     | { type: 'results';        mode: 'files'; files: string[]; total: number; filtered: boolean; queryId: number }
     | { type: 'results';        mode: 'grep';  matches: GrepMatch[]; total: number; queryId: number }
-    | { type: 'previewContent'; file: string; content: string; line?: number }
+    | { type: 'previewContent'; file: string; html: string; line?: number }
     | { type: 'nav';            action: string };

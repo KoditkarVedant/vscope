@@ -204,10 +204,12 @@ window.addEventListener('message', ({ data: msg }) => {
 
     } else if (msg.type === 'previewContent') {
         previewTitle.textContent = msg.file;
-        previewBody.textContent  = msg.content;
+        previewBody.innerHTML    = msg.html;
         if (msg.line) {
-            const lh = parseFloat(getComputedStyle(previewBody).lineHeight) || 20;
-            previewBody.scrollTop = Math.max(0, (msg.line - 1) * lh - previewBody.clientHeight / 3);
+            requestAnimationFrame(() => {
+                const lineEl = previewBody.querySelector(`[data-line="${msg.line}"]`);
+                if (lineEl) lineEl.scrollIntoView({ behavior: 'instant', block: 'center' });
+            });
         } else {
             previewBody.scrollTop = 0;
         }
@@ -239,7 +241,7 @@ function applyMode(newMode) {
     spacer.innerHTML = '';
     spacer.style.height = '0';
     previewTitle.textContent = '';
-    previewBody.textContent = '';
+    previewBody.innerHTML = '';
     searchInput.focus();
 }
 

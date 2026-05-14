@@ -141,7 +141,7 @@ export class FzfPanel {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy"
     content="default-src 'none';
-             style-src ${webview.cspSource};
+             style-src ${webview.cspSource} 'unsafe-inline';
              script-src 'nonce-${nonce}';">
   <link href="${styleUri}" rel="stylesheet">
   <title>VScope</title>
@@ -171,7 +171,7 @@ export class FzfPanel {
       </div>
       <div id="right-pane">
         <div id="preview-title"></div>
-        <pre id="preview-body"></pre>
+        <div id="preview-body"></div>
       </div>
     </div>
   </div>
