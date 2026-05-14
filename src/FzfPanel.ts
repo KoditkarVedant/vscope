@@ -18,7 +18,7 @@ export class FzfPanel {
     public static createOrShow(context: vscode.ExtensionContext) {
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         if (!workspaceRoot) {
-            vscode.window.showErrorMessage('fzf-vscode: No workspace folder is open.');
+            vscode.window.showErrorMessage('VScope: No workspace folder is open.');
             return;
         }
 
@@ -28,8 +28,8 @@ export class FzfPanel {
         }
 
         const panel = vscode.window.createWebviewPanel(
-            'fzfSearch',
-            'fzf Search',
+            'vscope',
+            'VScope',
             vscode.ViewColumn.One,
             {
                 enableScripts: true,
@@ -52,12 +52,18 @@ export class FzfPanel {
 
         this._panel.webview.html = this._buildHtml();
         this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
+        this._panel.onDidChangeViewState(
+            (e) => setContext(e.webviewPanel.visible),
+            null,
+            this._disposables
+        );
         this._panel.webview.onDidReceiveMessage(
             (msg) => this._handleMessage(msg),
             null,
             this._disposables
         );
 
+        setContext(true);
         this._loadFiles();
     }
 
@@ -133,7 +139,12 @@ export class FzfPanel {
         this._panel.webview.postMessage({ type: 'previewContent', file: relPath, content });
     }
 
+    public postToWebview(msg: object) {
+        this._panel.webview.postMessage(msg);
+    }
+
     public dispose() {
+        setContext(false);
         FzfPanel.currentPanel = undefined;
         this._panel.dispose();
         this._disposables.forEach((d) => d.dispose());
@@ -167,7 +178,7 @@ export class FzfPanel {
       <div id="left-pane">
         <div id="results"></div>
         <div id="footer">
-          <span>^j/n ↓ &nbsp;^p ↑</span>
+          <span>^n ↓ &nbsp;^p ↑</span>
           <span>^u/d preview ↕</span>
           <span>^f/k preview ↔</span>
           <span>↵ open &nbsp;esc close</span>
@@ -193,6 +204,10 @@ export class FzfPanel {
 </body>
 </html>`;
     }
+}
+
+function setContext(active: boolean) {
+    vscode.commands.executeCommand('setContext', 'vscope.active', active);
 }
 
 function getNonce(): string {

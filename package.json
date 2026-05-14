@@ -21,6 +21,42 @@
         "command": "vscope.search",
         "key": "alt+shift+f",
         "mac": "alt+shift+f"
+      },
+      {
+        "command": "vscope.keydown",
+        "args": "moveDown",
+        "key": "ctrl+n",
+        "when": "vscope.active"
+      },
+      {
+        "command": "vscope.keydown",
+        "args": "moveUp",
+        "key": "ctrl+p",
+        "when": "vscope.active"
+      },
+      {
+        "command": "vscope.keydown",
+        "args": "previewDown",
+        "key": "ctrl+d",
+        "when": "vscope.active"
+      },
+      {
+        "command": "vscope.keydown",
+        "args": "previewUp",
+        "key": "ctrl+u",
+        "when": "vscope.active"
+      },
+      {
+        "command": "vscope.keydown",
+        "args": "previewLeft",
+        "key": "ctrl+f",
+        "when": "vscope.active"
+      },
+      {
+        "command": "vscope.keydown",
+        "args": "previewRight",
+        "key": "ctrl+k",
+        "when": "vscope.active"
       }
     ]
   },

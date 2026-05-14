@@ -28,40 +28,17 @@ searchInput.addEventListener('input', () => {
 
 // ── Keyboard shortcuts ────────────────────────────────────────────────────────
 //
-//   Results navigation
-//   Ctrl+j / Ctrl+n / ↓   move down
-//   Ctrl+p / ↑             move up
-//
-//   Preview scrolling (fzf defaults)
-//   Ctrl+u                 scroll preview up   (half page)
-//   Ctrl+d                 scroll preview down (half page)
-//   Ctrl+f                 scroll preview left
-//   Ctrl+k                 scroll preview right
-//
-//   Enter                  open selected file
-//   Escape                 close panel
+//   Conflicting keys (Ctrl+J/N/P/D/U/F/K) are intercepted by VS Code via
+//   keybinding overrides in package.json and arrive here as 'nav' messages.
+//   Non-conflicting keys are handled directly below.
 
 searchInput.addEventListener('keydown', (e) => {
-    const ctrl = e.ctrlKey;
-
-    if ((ctrl && e.key === 'j') || (ctrl && e.key === 'n') || e.key === 'ArrowDown') {
+    if (e.key === 'ArrowDown') {
         e.preventDefault();
         move(1);
-    } else if ((ctrl && e.key === 'p') || e.key === 'ArrowUp') {
+    } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         move(-1);
-    } else if (ctrl && e.key === 'u') {
-        e.preventDefault();
-        scrollPreviewY(-previewBody.clientHeight * 0.5);
-    } else if (ctrl && e.key === 'd') {
-        e.preventDefault();
-        scrollPreviewY(previewBody.clientHeight * 0.5);
-    } else if (ctrl && e.key === 'f') {
-        e.preventDefault();
-        scrollPreviewX(-previewBody.clientWidth * 0.5);
-    } else if (ctrl && e.key === 'k') {
-        e.preventDefault();
-        scrollPreviewX(previewBody.clientWidth * 0.5);
     } else if (e.key === 'Enter') {
         e.preventDefault();
         openSelected();
@@ -85,7 +62,16 @@ window.addEventListener('message', (event) => {
     } else if (msg.type === 'previewContent') {
         previewTitle.textContent = msg.file;
         previewBody.textContent = msg.content;
-        previewBody.scrollTop = 0; // reset scroll to top for each new file
+        previewBody.scrollTop = 0;
+    } else if (msg.type === 'nav') {
+        switch (msg.action) {
+            case 'moveDown':    move(1); break;
+            case 'moveUp':      move(-1); break;
+            case 'previewDown': scrollPreviewY(previewBody.clientHeight * 0.5); break;
+            case 'previewUp':   scrollPreviewY(-previewBody.clientHeight * 0.5); break;
+            case 'previewLeft': scrollPreviewX(-previewBody.clientWidth * 0.5); break;
+            case 'previewRight':scrollPreviewX(previewBody.clientWidth * 0.5); break;
+        }
     }
 });
 
