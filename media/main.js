@@ -22,6 +22,13 @@ let grepMatches = [];
 let selectedIdx  = 0;
 let lastQueryId  = -1;
 
+// ── Preview chunk state ───────────────────────────────────────────────────────
+
+let previewFile        = '';
+let previewNextChunk   = 0;
+let previewTotalChunks = 0;
+let previewLoading     = false;
+
 /** @type {ReturnType<typeof setTimeout> | null} */
 let queryDebounce   = null;
 /** @type {ReturnType<typeof setTimeout> | null} */
@@ -86,6 +93,15 @@ const virt = {
 };
 
 resultsList.addEventListener('scroll', () => virt.render(), { passive: true });
+
+previewBody.addEventListener('scroll', () => {
+    if (previewLoading || previewNextChunk >= previewTotalChunks) return;
+    const { scrollTop, clientHeight, scrollHeight } = previewBody;
+    if (scrollTop + clientHeight >= scrollHeight - 200) {
+        previewLoading = true;
+        vscode.postMessage({ type: 'loadMorePreview', file: previewFile, chunkIndex: previewNextChunk });
+    }
+}, { passive: true });
 
 // ── Row builder ───────────────────────────────────────────────────────────────
 
@@ -205,6 +221,10 @@ window.addEventListener('message', ({ data: msg }) => {
     } else if (msg.type === 'previewContent') {
         previewTitle.textContent = msg.file;
         previewBody.innerHTML    = msg.html;
+        previewFile        = msg.file;
+        previewNextChunk   = msg.loadedChunks;
+        previewTotalChunks = msg.totalChunks;
+        previewLoading     = false;
         if (msg.line) {
             requestAnimationFrame(() => {
                 const lineEl = previewBody.querySelector(`[data-line="${msg.line}"]`);
@@ -213,6 +233,11 @@ window.addEventListener('message', ({ data: msg }) => {
         } else {
             previewBody.scrollTop = 0;
         }
+
+    } else if (msg.type === 'previewChunk') {
+        previewBody.insertAdjacentHTML('beforeend', msg.html);
+        previewNextChunk = msg.chunkIndex + 1;
+        previewLoading   = false;
 
     } else if (msg.type === 'nav') {
         switch (msg.action) {
@@ -241,7 +266,11 @@ function applyMode(newMode) {
     spacer.innerHTML = '';
     spacer.style.height = '0';
     previewTitle.textContent = '';
-    previewBody.innerHTML = '';
+    previewBody.innerHTML    = '';
+    previewFile        = '';
+    previewNextChunk   = 0;
+    previewTotalChunks = 0;
+    previewLoading     = false;
     searchInput.focus();
 }
 

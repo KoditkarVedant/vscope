@@ -232,17 +232,19 @@ body {
   border-radius: 3px;
 }
 
-/* Shiki output fills the preview pane */
+/* Each chunk is a .shiki <pre>; stack them seamlessly */
 #preview-body .shiki {
   margin: 0;
-  padding: 12px 16px;
-  min-height: 100%;
+  padding: 0 16px;
   min-width: max-content;
   font-family: inherit;
   font-size: inherit;
   line-height: 1.6;
   tab-size: 4;
 }
+
+#preview-body .shiki:first-child { padding-top: 12px; }
+#preview-body .shiki:last-child  { padding-bottom: 12px; min-height: 100%; }
 
 #preview-body .shiki code {
   font-family: inherit;
