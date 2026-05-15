@@ -34,11 +34,6 @@ export async function* streamLines(opts: LineStreamerOptions): AsyncGenerator<st
 
     const proc = cp.spawn(cmd, args, { cwd, shell, stdio: ['ignore', 'pipe', 'pipe'] });
 
-    const abortHandler = () => proc.kill();
-    signal?.addEventListener('abort', abortHandler);
-
-    const closePromise = new Promise<void>((res) => proc.on('close', () => res()));
-
     const MAX_BUFFER = backpressureBufSize * 2;
     const lines: string[] = [];
     let buf = '';
@@ -50,6 +45,22 @@ export async function* streamLines(opts: LineStreamerOptions): AsyncGenerator<st
         resolveNext?.();
         resolveNext = null;
     };
+
+    let closeResolve: () => void = () => {};
+    const closePromise = new Promise<void>((res) => { closeResolve = res; });
+
+    // Abort path: kill the process AND wake the generator. Killing alone isn't enough — on
+    // Windows or after a severed pipe, stdout 'end' may not fire, leaving the await hung.
+    const abortHandler = () => {
+        if (!proc.killed) proc.kill();
+        done = true;
+        wake();
+    };
+    if (signal?.aborted) {
+        abortHandler();
+    } else {
+        signal?.addEventListener('abort', abortHandler);
+    }
 
     proc.stdout.on('data', (d: Buffer) => {
         buf += d.toString('utf-8');
@@ -72,6 +83,13 @@ export async function* streamLines(opts: LineStreamerOptions): AsyncGenerator<st
     proc.on('error', () => {
         errored = true;
         done = true;
+        wake();
+    });
+
+    proc.on('close', () => {
+        // Defensive: ensures we exit even if 'end' was missed (severed pipe, abrupt kill).
+        done = true;
+        closeResolve();
         wake();
     });
 
