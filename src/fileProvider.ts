@@ -1,77 +1,49 @@
-import * as cp from 'child_process';
-import * as vscode from 'vscode';
 import * as path from 'path';
-
-export type ChunkCallback = (files: string[]) => void;
+import * as vscode from 'vscode';
+import { streamLines } from './lineStreamer';
 
 /**
- * Stream workspace files, calling onChunk progressively as lines arrive.
- * Tries git ls-files → fd → vscode.findFiles in order.
- * Resolves with the complete file list when done.
+ * Stream workspace files as delta chunks.
+ * Primary: rg --files (respects .gitignore).
+ * Fallback: vscode.workspace.findFiles (single emit).
  */
-export function streamFiles(workspaceRoot: string, onChunk: ChunkCallback): Promise<string[]> {
-    return new Promise((resolve) => {
-        tryStream(
-            'git', ['ls-files', '--cached', '--others', '--exclude-standard'], workspaceRoot,
-            onChunk, resolve,
-            () => tryStream(
-                'fd', ['--type', 'f', '--hidden', '--follow', '--exclude', '.git'], workspaceRoot,
-                onChunk, resolve,
-                () => tryVscode(workspaceRoot, onChunk, resolve)
-            )
-        );
-    });
+export async function* streamFiles(
+    workspaceRoot: string,
+    signal?: AbortSignal
+): AsyncGenerator<string[]> {
+    try {
+        let yieldedAny = false;
+        for await (const chunk of streamLines({
+            cmd: 'rg',
+            args: ['--files', '--hidden', '--glob', '!.git', '--', '.'],
+            cwd: workspaceRoot,
+            signal,
+            chunkSize: (isFirst, count) => {
+                if (isFirst) return 200;
+                if (count < 10_000) return 5_000;
+                return 20_000;
+            },
+        })) {
+            yieldedAny = true;
+            yield chunk.map(normalize);
+        }
+        if (yieldedAny) return;
+    } catch {
+        // fall through to vscode API
+    }
+
+    if (signal?.aborted) return;
+
+    const uris = await vscode.workspace.findFiles(
+        '**/*',
+        '{**/node_modules/**,**/.git/**}',
+        20_000
+    );
+    if (signal?.aborted) return;
+    const files = uris.map((u) => path.relative(workspaceRoot, u.fsPath).replace(/\\/g, '/'));
+    if (files.length > 0) yield files;
 }
 
-function tryStream(
-    cmd: string,
-    args: string[],
-    cwd: string,
-    onChunk: ChunkCallback,
-    onDone: (files: string[]) => void,
-    onFail: () => void
-) {
-    const all: string[] = [];
-    let buf = '';
-    let lastEmit = 0;
-
-    const proc = cp.spawn(cmd, args, { cwd });
-
-    proc.stdout.on('data', (d: Buffer) => {
-        buf += d.toString();
-        const nl = buf.lastIndexOf('\n');
-        if (nl < 0) return;
-
-        const lines = buf.slice(0, nl).split('\n').filter(Boolean);
-        buf = buf.slice(nl + 1);
-        all.push(...lines);
-
-        // Throttle to ~10 emits/sec so we don't flood postMessage
-        const now = Date.now();
-        if (now - lastEmit >= 100) {
-            lastEmit = now;
-            onChunk([...all]);
-        }
-    });
-
-    proc.on('close', (code) => {
-        if (buf) all.push(...buf.split('\n').filter(Boolean));
-
-        if (code === 0 && all.length > 0) {
-            onChunk([...all]);
-            onDone([...all]);
-        } else {
-            onFail();
-        }
-    });
-
-    proc.on('error', onFail);
-}
-
-function tryVscode(workspaceRoot: string, onChunk: ChunkCallback, onDone: (files: string[]) => void) {
-    vscode.workspace.findFiles('**/*', '{**/node_modules/**,**/.git/**}', 20000).then((uris) => {
-        const files = uris.map((u) => path.relative(workspaceRoot, u.fsPath).replace(/\\/g, '/'));
-        onChunk(files);
-        onDone(files);
-    });
+function normalize(line: string): string {
+    return line.replace(/\\/g, '/');
 }

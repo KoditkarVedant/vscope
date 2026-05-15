@@ -19,9 +19,11 @@ let results = [];
 /** @type {Array<{file:string, line:number, col:number, text:string}>} */
 let grepMatches = [];
 
-let selectedIdx  = 0;
-let lastQueryId  = -1;
-let currentQuery = '';
+let selectedIdx     = 0;
+let lastQueryId     = -1;
+let currentQuery    = '';
+let currentTotal    = 0;
+let currentFiltered = false;
 
 // ── Preview chunk state ───────────────────────────────────────────────────────
 
@@ -134,12 +136,22 @@ resultsList.appendChild(spacer);
 
 const virt = {
     count: 0,
+    _rafScheduled: false,
 
-    /** Call after results array changes. */
+    /** Call after results array changes. Coalesces bursts into one render per frame. */
     setCount(n) {
         this.count = n;
         spacer.style.height = `${n * ITEM_HEIGHT}px`;
-        this.render();
+        this.scheduleRender();
+    },
+
+    scheduleRender() {
+        if (this._rafScheduled) return;
+        this._rafScheduled = true;
+        requestAnimationFrame(() => {
+            this._rafScheduled = false;
+            this.render();
+        });
     },
 
     /** Navigate to index: scroll if needed, then re-render. */
@@ -152,7 +164,7 @@ const virt = {
         } else if (bottom > scrollTop + clientHeight) {
             resultsList.scrollTop = bottom - clientHeight;
         }
-        this.render();
+        this.scheduleRender();
     },
 
     render() {
@@ -172,7 +184,7 @@ const virt = {
     },
 };
 
-resultsList.addEventListener('scroll', () => virt.render(), { passive: true });
+resultsList.addEventListener('scroll', () => virt.scheduleRender(), { passive: true });
 
 previewBody.addEventListener('scroll', () => {
     if (previewLoading || previewNextChunk >= previewTotalChunks) return;
@@ -334,33 +346,38 @@ window.addEventListener('keydown', (e) => {
 
 window.addEventListener('message', ({ data: msg }) => {
     if (msg.type === 'setMode') {
-        applyMode(msg.mode);
+        if (mode !== msg.mode) applyMode(msg.mode);
 
-    } else if (msg.type === 'results') {
-        const isNewQuery = msg.queryId !== lastQueryId;
+    } else if (msg.type === 'resultsReset') {
         lastQueryId  = msg.queryId;
         currentQuery = msg.query;
+        currentFiltered = msg.filtered;
 
         if (mode !== msg.mode) applyMode(msg.mode);
 
+        results = [];
+        grepMatches = [];
+        currentTotal = 0;
+        selectedIdx = 0;
+        resultsList.scrollTop = 0;
+        updateCounter();
+        virt.setCount(0);
+
+    } else if (msg.type === 'resultsAppend') {
+        // Stale chunk from a previous query — ignore.
+        if (msg.queryId !== lastQueryId) return;
+        if (mode !== msg.mode) return;
+
         if (msg.mode === 'grep') {
-            grepMatches = msg.matches;
-            counter.textContent = `${msg.total} matches`;
+            for (const m of msg.items) grepMatches.push(m);
         } else {
-            results = msg.files;
-            counter.textContent = msg.filtered
-                ? `${results.length} / ${msg.total}`
-                : `${msg.total} files`;
+            for (const f of msg.items) results.push(f);
         }
-
-        // Only jump to top when a genuinely new query starts
-        if (isNewQuery) {
-            selectedIdx = 0;
-            resultsList.scrollTop = 0;
-        }
-
+        currentTotal = msg.total;
+        updateCounter();
         virt.setCount(listLength());
-        schedulePreview();
+        // Preview only when we go from no-rows to first-row.
+        if (listLength() === msg.items.length) schedulePreview();
 
     } else if (msg.type === 'previewContent') {
         previewTitle.textContent = msg.file;
@@ -408,6 +425,8 @@ function applyMode(newMode) {
     grepMatches = [];
     selectedIdx = 0;
     lastQueryId = -1;
+    currentTotal = 0;
+    currentFiltered = false;
     counter.textContent = '';
     spacer.innerHTML = '';
     spacer.style.height = '0';
@@ -418,6 +437,16 @@ function applyMode(newMode) {
     previewTotalChunks = 0;
     previewLoading     = false;
     searchInput.focus();
+}
+
+function updateCounter() {
+    if (mode === 'grep') {
+        counter.textContent = currentTotal ? `${currentTotal} matches` : '';
+    } else {
+        counter.textContent = currentFiltered
+            ? `${results.length} / ${currentTotal}`
+            : `${currentTotal} files`;
+    }
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────────

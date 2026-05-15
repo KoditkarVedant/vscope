@@ -1,57 +1,46 @@
-import * as cp from 'child_process';
+import { streamLines } from './lineStreamer';
 import type { GrepMatch } from './messages';
 
-export function runGrep(
+/**
+ * Stream ripgrep matches as delta chunks of GrepMatch[].
+ * Small first chunk for low TTFB; larger chunks afterward.
+ */
+export async function* runGrep(
     query: string,
     workspaceRoot: string,
-    onChunk: (matches: GrepMatch[]) => void
-): () => void {
-    const accumulated: GrepMatch[] = [];
-    let buf = '';
-    let lastEmit = 0;
-
-    const proc = cp.spawn(
-        'rg',
-        ['--json', '--smart-case', '--', query, '.'],
-        { cwd: workspaceRoot }
-    );
-
-    function emit(force = false) {
-        const now = Date.now();
-        if (force || now - lastEmit >= 100) {
-            lastEmit = now;
-            onChunk([...accumulated]);
-        }
-    }
-
-    proc.stdout.on('data', (d: Buffer) => {
-        buf += d.toString();
-        const lines = buf.split('\n');
-        buf = lines.pop() ?? '';
-
+    signal?: AbortSignal
+): AsyncGenerator<GrepMatch[]> {
+    for await (const lines of streamLines({
+        cmd: 'rg',
+        args: ['--json', '--smart-case', '--', query, '.'],
+        cwd: workspaceRoot,
+        signal,
+        chunkSize: (isFirst, count) => {
+            if (isFirst) return 100;
+            if (count < 10_000) return 5_000;
+            return 12_000;
+        },
+    })) {
+        const matches: GrepMatch[] = [];
         for (const raw of lines) {
-            if (!raw.trim()) continue;
-            try {
-                const obj = JSON.parse(raw);
-                if (obj.type === 'match') {
-                    accumulated.push({
-                        file: obj.data.path.text.replace(/\\/g, '/'),
-                        line: obj.data.line_number,
-                        col: (obj.data.submatches[0]?.start ?? 0) + 1,
-                        text: obj.data.lines.text.replace(/[\r\n]+$/, ''),
-                    });
-                }
-            } catch {
-                // skip malformed lines
-            }
+            const parsed = parseLine(raw);
+            if (parsed) matches.push(parsed);
         }
-        emit();
-    });
+        if (matches.length > 0) yield matches;
+    }
+}
 
-    let cancelled = false;
-
-    proc.on('close', () => { if (!cancelled) emit(true); });
-    proc.on('error', () => { if (!cancelled) onChunk([]); });
-
-    return () => { cancelled = true; proc.kill(); };
+function parseLine(raw: string): GrepMatch | null {
+    try {
+        const obj = JSON.parse(raw);
+        if (obj.type !== 'match') return null;
+        return {
+            file: obj.data.path.text.replace(/\\/g, '/'),
+            line: obj.data.line_number,
+            col: (obj.data.submatches[0]?.start ?? 0) + 1,
+            text: obj.data.lines.text.replace(/[\r\n]+$/, ''),
+        };
+    } catch {
+        return null;
+    }
 }
