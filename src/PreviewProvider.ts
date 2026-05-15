@@ -1,15 +1,15 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import {
-    createHighlighter,
-    bundledLanguages,
-    type Highlighter,
-    type BundledLanguage,
-    type SpecialLanguage,
-    type ThemedToken,
-    type GrammarState,
-    type ThemeRegistrationRaw,
+// Type-only imports are erased at compile, so they don't trigger a require('shiki') here —
+// shiki itself is loaded dynamically inside getHighlighter() on first preview.
+import type {
+    Highlighter,
+    BundledLanguage,
+    SpecialLanguage,
+    ThemedToken,
+    GrammarState,
+    ThemeRegistrationRaw,
 } from 'shiki';
 import type { ToWebviewMessage } from './messages';
 import extToLang from './ext-to-lang.json';
@@ -21,16 +21,19 @@ const MAX_FILE_CACHE = 5;   // max files kept in memory
 
 // ── Highlighter singleton ─────────────────────────────────────────────────────
 
-const BUNDLED_LANG_SET = new Set<string>(Object.keys(bundledLanguages));
-
 let _hl: Promise<Highlighter> | null = null;
+let _bundledLangSet: Set<string> | null = null;
 
 function getHighlighter(): Promise<Highlighter> {
     if (!_hl) {
-        _hl = createHighlighter({
-            themes: ['dark-plus', 'light-plus'],
-            langs:  [],
-        }).catch((e) => { _hl = null; throw e; });
+        _hl = (async () => {
+            const shiki = await import('shiki');
+            _bundledLangSet = new Set(Object.keys(shiki.bundledLanguages));
+            return shiki.createHighlighter({
+                themes: ['dark-plus', 'light-plus'],
+                langs:  [],
+            });
+        })().catch((e) => { _hl = null; throw e; });
     }
     return _hl;
 }
@@ -55,7 +58,9 @@ function detectLanguage(filePath: string): BundledLanguage | SpecialLanguage {
     if (base === 'gradlew')                                                                  return 'shellscript';
 
     const lang = (extToLang as Record<string, string>)[ext];
-    return (lang && BUNDLED_LANG_SET.has(lang) ? lang as BundledLanguage : 'plaintext');
+    // detectLanguage is always called after getHighlighter resolves (see _sendInitial), so
+    // _bundledLangSet is populated. If unexpectedly called earlier, fall through to plaintext.
+    return (lang && _bundledLangSet?.has(lang) ? lang as BundledLanguage : 'plaintext');
 }
 
 // ── JSONC helpers ─────────────────────────────────────────────────────────────

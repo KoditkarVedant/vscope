@@ -33,7 +33,9 @@ async function main() {
         platform:    'node',
         target:      'node16',
         outfile:     'out/extension.js',
-        external:    ['vscode'],
+        // Keep shiki out of the bundle — it weighs ~10MB and is only needed once a preview
+        // is first opened. Resolved from node_modules at runtime via require().
+        external:    ['vscode', 'shiki'],
         sourcemap:   !production,
         minify:      production,
         logLevel:    'info',
