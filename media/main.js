@@ -137,6 +137,8 @@ resultsList.appendChild(spacer);
 const virt = {
     count: 0,
     _rafScheduled: false,
+    _renderedStart: 0,
+    _renderedEnd: 0,
 
     /** Call after results array changes. Coalesces bursts into one render per frame. */
     setCount(n) {
@@ -154,17 +156,36 @@ const virt = {
         });
     },
 
-    /** Navigate to index: scroll if needed, then re-render. */
-    navigateTo(index) {
-        const top    = index * ITEM_HEIGHT;
+    /**
+     * Move selection. If new row is already in the rendered window, just toggle .selected on
+     * the old and new rows — no virtualizer rebuild. Otherwise scroll into view (which fires
+     * the scroll listener and re-renders) or schedule an explicit render.
+     */
+    selectIndex(newIdx, oldIdx) {
+        const top    = newIdx * ITEM_HEIGHT;
         const bottom = top + ITEM_HEIGHT;
         const { scrollTop, clientHeight } = resultsList;
+
         if (top < scrollTop) {
             resultsList.scrollTop = top;
-        } else if (bottom > scrollTop + clientHeight) {
-            resultsList.scrollTop = bottom - clientHeight;
+            this.scheduleRender();
+            return;
         }
-        this.scheduleRender();
+        if (bottom > scrollTop + clientHeight) {
+            resultsList.scrollTop = bottom - clientHeight;
+            this.scheduleRender();
+            return;
+        }
+        if (newIdx < this._renderedStart || newIdx >= this._renderedEnd) {
+            this.scheduleRender();
+            return;
+        }
+        if (oldIdx >= this._renderedStart && oldIdx < this._renderedEnd) {
+            const prev = spacer.querySelector(`[data-index="${oldIdx}"]`);
+            prev?.classList.remove('selected');
+        }
+        const cur = spacer.querySelector(`[data-index="${newIdx}"]`);
+        cur?.classList.add('selected');
     },
 
     render() {
@@ -181,6 +202,8 @@ const virt = {
         }
         spacer.innerHTML = '';
         spacer.appendChild(frag);
+        this._renderedStart = start;
+        this._renderedEnd = end;
     },
 };
 
@@ -251,6 +274,7 @@ function highlightSubstring(str, query) {
 function buildRow(i) {
     const row = document.createElement('div');
     row.className = 'result-row' + (i === selectedIdx ? ' selected' : '');
+    row.dataset.index = String(i);
 
     if (mode === 'grep') {
         const m = grepMatches[i];
@@ -303,8 +327,9 @@ function buildRow(i) {
     }
 
     row.addEventListener('click', () => {
+        const prev = selectedIdx;
         selectedIdx = i;
-        virt.render();
+        virt.selectIndex(i, prev);
         schedulePreview();
     });
     row.addEventListener('dblclick', () => { selectedIdx = i; openSelected(); });
@@ -464,8 +489,9 @@ function move(delta) {
     if (listLength() === 0) return;
     const next = Math.max(0, Math.min(listLength() - 1, selectedIdx + delta));
     if (next !== selectedIdx) {
+        const prev = selectedIdx;
         selectedIdx = next;
-        virt.navigateTo(next);
+        virt.selectIndex(next, prev);
         schedulePreview();
     }
 }
