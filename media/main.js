@@ -139,11 +139,24 @@ const virt = {
     _rafScheduled: false,
     _renderedStart: 0,
     _renderedEnd: 0,
+    /** @type {Map<number, HTMLElement>} index → row element currently in DOM */
+    _rows: new Map(),
+    _purgeOnNextRender: false,
+
+    /**
+     * Mark all rendered rows as stale — next render purges and rebuilds them.
+     * Used when the underlying data is replaced (resultsReset, mode change).
+     */
+    invalidate() {
+        this._purgeOnNextRender = true;
+    },
 
     /** Call after results array changes. Coalesces bursts into one render per frame. */
     setCount(n) {
-        this.count = n;
-        spacer.style.height = `${n * ITEM_HEIGHT}px`;
+        if (n !== this.count) {
+            this.count = n;
+            spacer.style.height = `${n * ITEM_HEIGHT}px`;
+        }
         this.scheduleRender();
     },
 
@@ -162,30 +175,26 @@ const virt = {
      * the scroll listener and re-renders) or schedule an explicit render.
      */
     selectIndex(newIdx, oldIdx) {
+        this._rows.get(oldIdx)?.classList.remove('selected');
+
         const top    = newIdx * ITEM_HEIGHT;
         const bottom = top + ITEM_HEIGHT;
         const { scrollTop, clientHeight } = resultsList;
 
+        // Scroll into view if needed. Don't return — the new row may already be in _rows
+        // (BUFFER pre-renders nearby indices), in which case we still need to flip its class.
         if (top < scrollTop) {
             resultsList.scrollTop = top;
-            this.scheduleRender();
-            return;
-        }
-        if (bottom > scrollTop + clientHeight) {
+        } else if (bottom > scrollTop + clientHeight) {
             resultsList.scrollTop = bottom - clientHeight;
+        }
+
+        const cur = this._rows.get(newIdx);
+        if (cur) {
+            cur.classList.add('selected');
+        } else {
             this.scheduleRender();
-            return;
         }
-        if (newIdx < this._renderedStart || newIdx >= this._renderedEnd) {
-            this.scheduleRender();
-            return;
-        }
-        if (oldIdx >= this._renderedStart && oldIdx < this._renderedEnd) {
-            const prev = spacer.querySelector(`[data-index="${oldIdx}"]`);
-            prev?.classList.remove('selected');
-        }
-        const cur = spacer.querySelector(`[data-index="${newIdx}"]`);
-        cur?.classList.add('selected');
     },
 
     render() {
@@ -193,15 +202,30 @@ const virt = {
         const start = Math.max(0, Math.floor(scrollTop / ITEM_HEIGHT) - BUFFER);
         const end   = Math.min(this.count, Math.ceil((scrollTop + clientHeight) / ITEM_HEIGHT) + BUFFER);
 
-        const frag = document.createDocumentFragment();
+        if (this._purgeOnNextRender) {
+            this._purgeOnNextRender = false;
+            for (const el of this._rows.values()) el.remove();
+            this._rows.clear();
+        }
+
+        // Drop rows that scrolled out of the window.
+        for (const [idx, el] of this._rows) {
+            if (idx < start || idx >= end) {
+                el.remove();
+                this._rows.delete(idx);
+            }
+        }
+
+        // Mount rows that scrolled into the window. Untouched rows stay put — no repaint.
         for (let i = start; i < end; i++) {
+            if (this._rows.has(i)) continue;
             const row = buildRow(i);
             row.style.cssText =
                 `position:absolute;top:${i * ITEM_HEIGHT}px;left:0;right:0;height:${ITEM_HEIGHT}px;`;
-            frag.appendChild(row);
+            spacer.appendChild(row);
+            this._rows.set(i, row);
         }
-        spacer.innerHTML = '';
-        spacer.appendChild(frag);
+
         this._renderedStart = start;
         this._renderedEnd = end;
     },
@@ -386,6 +410,7 @@ window.addEventListener('message', ({ data: msg }) => {
         selectedIdx = 0;
         resultsList.scrollTop = 0;
         updateCounter();
+        virt.invalidate();
         virt.setCount(0);
 
     } else if (msg.type === 'resultsAppend') {
@@ -458,8 +483,8 @@ function applyMode(newMode) {
     currentTotal = 0;
     currentFiltered = false;
     counter.textContent = '';
-    spacer.innerHTML = '';
-    spacer.style.height = '0';
+    virt.invalidate();
+    virt.setCount(0);
     previewTitle.textContent = '';
     previewBody.innerHTML    = '';
     previewFile        = '';
