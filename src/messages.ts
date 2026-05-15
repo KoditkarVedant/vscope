@@ -22,7 +22,7 @@ export type FromWebviewMessage =
 
 export type ToWebviewMessage =
     | { type: 'setMode';         mode: PanelMode }
-    | { type: 'resultsReset';    queryId: number; mode: PanelMode; query: string; filtered: boolean }
+    | { type: 'resultsReset';    queryId: number; mode: PanelMode; query: string; filtered: boolean; total: number }
     | { type: 'resultsAppend';   queryId: number; mode: 'files'; items: string[]; total: number }
     | { type: 'resultsAppend';   queryId: number; mode: 'grep';  items: GrepMatch[]; total: number }
     | { type: 'previewContent';  file: string; html: string; totalChunks: number; loadedChunks: number; line?: number }

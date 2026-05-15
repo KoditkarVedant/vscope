@@ -1,3 +1,4 @@
+import { chunkArray } from './finders/chunker';
 import { streamFiles } from './finders/files';
 import { runGrep } from './finders/text';
 import { filterWithFzf } from './fzfProcess';
@@ -34,6 +35,7 @@ export class SearchEngine {
                 mode: 'files',
                 query: '',
                 filtered: false,
+                total: this._files.length,
             });
         }
         try {
@@ -63,7 +65,7 @@ export class SearchEngine {
         this._queryAbort?.abort();
         this._queryAbort = null;
         if (mode === 'files') {
-            this._startBrowse();
+            void this._startBrowse();
         } else {
             this._post({
                 type: 'resultsReset',
@@ -71,6 +73,7 @@ export class SearchEngine {
                 mode: 'grep',
                 query: '',
                 filtered: false,
+                total: 0,
             });
         }
     }
@@ -89,6 +92,7 @@ export class SearchEngine {
                 mode: 'grep',
                 query: value,
                 filtered: !!value,
+                total: 0,
             });
             if (!value) return;
             try {
@@ -112,7 +116,7 @@ export class SearchEngine {
 
         // files mode
         if (!value) {
-            this._startBrowse(qid);
+            await this._startBrowse(qid);
             return;
         }
 
@@ -122,6 +126,7 @@ export class SearchEngine {
             mode: 'files',
             query: value,
             filtered: true,
+            total: this._files.length,
         });
 
         const results = await filterWithFzf(value, this._files, signal);
@@ -143,25 +148,28 @@ export class SearchEngine {
         this._filesLoadAbort.abort();
     }
 
-    private _startBrowse(reuseQid?: number): void {
+    private async _startBrowse(reuseQid?: number): Promise<void> {
         const qid = reuseQid ?? ++this._queryId;
+        const total = this._files.length;
         this._post({
             type: 'resultsReset',
             queryId: qid,
             mode: 'files',
             query: '',
             filtered: false,
+            total,
         });
-        if (this._files.length === 0) return;
-        // Re-emit cached files in chunks so the webview doesn't choke on one giant message.
-        for (let i = 0; i < this._files.length; i += BROWSE_CHUNK_SIZE) {
-            const items = this._files.slice(i, i + BROWSE_CHUNK_SIZE);
+        if (total === 0) return;
+        // Re-emit cached files via chunker so we yield to the event loop between chunks.
+        // Keeps the webview responsive to key events while bursts of appends are processed.
+        for await (const items of chunkArray(this._files, BROWSE_CHUNK_SIZE)) {
+            if (qid !== this._queryId) return;
             this._post({
                 type: 'resultsAppend',
                 queryId: qid,
                 mode: 'files',
                 items,
-                total: this._files.length,
+                total,
             });
         }
     }

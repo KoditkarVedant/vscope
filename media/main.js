@@ -357,7 +357,7 @@ window.addEventListener('message', ({ data: msg }) => {
 
         results = [];
         grepMatches = [];
-        currentTotal = 0;
+        currentTotal = msg.total;
         selectedIdx = 0;
         resultsList.scrollTop = 0;
         updateCounter();
@@ -373,8 +373,13 @@ window.addEventListener('message', ({ data: msg }) => {
         } else {
             for (const f of msg.items) results.push(f);
         }
-        currentTotal = msg.total;
-        updateCounter();
+        if (msg.total !== currentTotal) {
+            currentTotal = msg.total;
+            updateCounter();
+        } else if (currentFiltered) {
+            // Filtered counter shows "N / total" where N = results.length and grew with this append.
+            updateCounter();
+        }
         virt.setCount(listLength());
         // Preview only when we go from no-rows to first-row.
         if (listLength() === msg.items.length) schedulePreview();
