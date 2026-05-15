@@ -3,10 +3,63 @@
 
 const vscode = acquireVsCodeApi();
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+// ── Config ────────────────────────────────────────────────────────────────────
+// All tunables live here so behavior is easy to inspect and adjust.
 
-const ITEM_HEIGHT = 28; // must match .result-row height in style.css
-const BUFFER      = 8;  // extra rows rendered above/below the visible window
+const CFG = Object.freeze({
+    /** Row height in px — must match .result-row height in style.css. */
+    ITEM_HEIGHT: 28,
+    /** Extra rows rendered above/below the visible window. */
+    VIRT_BUFFER: 8,
+    /** Debounce before sending a files-mode query to the extension (ms). */
+    QUERY_DEBOUNCE_FILES_MS: 60,
+    /** Debounce before sending a grep-mode query (ms). */
+    QUERY_DEBOUNCE_GREP_MS: 150,
+    /** Debounce before requesting preview for the selected row (ms). */
+    PREVIEW_DEBOUNCE_MS: 80,
+    /** Distance (px) from preview bottom that triggers loadMorePreview. */
+    PREVIEW_PREFETCH_PX: 200,
+});
+
+// Kept as locals for code readability; values come from CFG.
+const ITEM_HEIGHT = CFG.ITEM_HEIGHT;
+const BUFFER      = CFG.VIRT_BUFFER;
+
+// ── rAF coalescer ─────────────────────────────────────────────────────────────
+// Generic batcher: caller pushes items as they arrive; drain runs at most once
+// per animation frame with the accumulated batch. Decouples message receipt
+// (must stay sub-millisecond) from heavy DOM/state work.
+
+/**
+ * @template T
+ * @param {(batch: T[]) => void} drain
+ * @returns {{ push: (item: T) => void, clear: () => void }}
+ */
+function createRafCoalescer(drain) {
+    /** @type {T[]} */
+    let pending = [];
+    let scheduled = false;
+
+    const flush = () => {
+        scheduled = false;
+        if (pending.length === 0) return;
+        const batch = pending;
+        pending = [];
+        drain(batch);
+    };
+
+    return {
+        push(item) {
+            pending.push(item);
+            if (scheduled) return;
+            scheduled = true;
+            requestAnimationFrame(flush);
+        },
+        clear() {
+            pending = [];
+        },
+    };
+}
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -233,10 +286,44 @@ const virt = {
 
 resultsList.addEventListener('scroll', () => virt.scheduleRender(), { passive: true });
 
+// ── Append queue ──────────────────────────────────────────────────────────────
+// Buffers resultsAppend messages and drains them once per animation frame. Pre-batching
+// folds N message handlers into one DOM-touching pass per frame, so the main thread is
+// free to dispatch keypresses between incoming chunks during streaming bursts.
+
+/** @typedef {{ queryId: number, mode: 'files' | 'grep', items: any[], total: number }} AppendMsg */
+
+const appendQueue = createRafCoalescer(/** @param {AppendMsg[]} batch */ (batch) => {
+    // The reset path clears the queue, so every batch here is for the current query/mode.
+    let firstAppendOfQuery = listLength() === 0;
+    let nextTotal = currentTotal;
+    let addedAny = false;
+
+    for (const msg of batch) {
+        if (msg.queryId !== lastQueryId || msg.mode !== mode) continue;
+        if (msg.mode === 'grep') {
+            for (const m of msg.items) grepMatches.push(m);
+        } else {
+            for (const f of msg.items) results.push(f);
+        }
+        nextTotal = msg.total;
+        addedAny = true;
+    }
+
+    if (!addedAny) return;
+
+    if (nextTotal !== currentTotal || currentFiltered) {
+        currentTotal = nextTotal;
+        updateCounter();
+    }
+    virt.setCount(listLength());
+    if (firstAppendOfQuery) schedulePreview();
+});
+
 previewBody.addEventListener('scroll', () => {
     if (previewLoading || previewNextChunk >= previewTotalChunks) return;
     const { scrollTop, clientHeight, scrollHeight } = previewBody;
-    if (scrollTop + clientHeight >= scrollHeight - 200) {
+    if (scrollTop + clientHeight >= scrollHeight - CFG.PREVIEW_PREFETCH_PX) {
         previewLoading = true;
         vscode.postMessage({ type: 'loadMorePreview', file: previewFile, chunkIndex: previewNextChunk });
     }
@@ -372,7 +459,7 @@ searchInput.addEventListener('input', () => {
     clearTimeout(queryDebounce);
     queryDebounce = setTimeout(() => {
         vscode.postMessage({ type: 'query', value: searchInput.value });
-    }, mode === 'grep' ? 150 : 60);
+    }, mode === 'grep' ? CFG.QUERY_DEBOUNCE_GREP_MS : CFG.QUERY_DEBOUNCE_FILES_MS);
 });
 
 searchInput.addEventListener('keydown', (e) => {
@@ -398,12 +485,16 @@ window.addEventListener('message', ({ data: msg }) => {
         if (mode !== msg.mode) applyMode(msg.mode);
 
     } else if (msg.type === 'resultsReset') {
+        // applyMode resets lastQueryId etc., so it must run BEFORE we apply the message's
+        // state — otherwise the new queryId we set here gets clobbered, and every subsequent
+        // append for this query is treated as stale and silently dropped.
+        if (mode !== msg.mode) applyMode(msg.mode);
+
         lastQueryId  = msg.queryId;
         currentQuery = msg.query;
         currentFiltered = msg.filtered;
 
-        if (mode !== msg.mode) applyMode(msg.mode);
-
+        appendQueue.clear();  // drop any in-flight appends from the previous query
         results = [];
         grepMatches = [];
         currentTotal = msg.total;
@@ -414,25 +505,12 @@ window.addEventListener('message', ({ data: msg }) => {
         virt.setCount(0);
 
     } else if (msg.type === 'resultsAppend') {
-        // Stale chunk from a previous query — ignore.
+        // Filter stale messages here so the queue stays small. Heavy work runs in the rAF
+        // drainer below — message receipt itself must stay sub-millisecond to keep keypresses
+        // responsive during streaming bursts.
         if (msg.queryId !== lastQueryId) return;
         if (mode !== msg.mode) return;
-
-        if (msg.mode === 'grep') {
-            for (const m of msg.items) grepMatches.push(m);
-        } else {
-            for (const f of msg.items) results.push(f);
-        }
-        if (msg.total !== currentTotal) {
-            currentTotal = msg.total;
-            updateCounter();
-        } else if (currentFiltered) {
-            // Filtered counter shows "N / total" where N = results.length and grew with this append.
-            updateCounter();
-        }
-        virt.setCount(listLength());
-        // Preview only when we go from no-rows to first-row.
-        if (listLength() === msg.items.length) schedulePreview();
+        appendQueue.push(msg);
 
     } else if (msg.type === 'previewContent') {
         previewTitle.textContent = msg.file;
@@ -539,7 +617,7 @@ function schedulePreview() {
         } else {
             if (results[selectedIdx]) vscode.postMessage({ type: 'preview', file: results[selectedIdx] });
         }
-    }, 80);
+    }, CFG.PREVIEW_DEBOUNCE_MS);
 }
 
 function scrollPreviewY(px) { previewBody.scrollTop  += px; }
