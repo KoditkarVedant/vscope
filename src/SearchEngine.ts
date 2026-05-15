@@ -1,6 +1,6 @@
-import { streamFiles } from './fileProvider';
+import { streamFiles } from './finders/files';
+import { runGrep } from './finders/text';
 import { filterWithFzf } from './fzfProcess';
-import { runGrep } from './grepProcess';
 import type { PanelMode, ToWebviewMessage } from './messages';
 
 const BROWSE_CHUNK_SIZE = 5000;

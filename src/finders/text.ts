@@ -1,5 +1,5 @@
+import type { GrepMatch } from '../messages';
 import { streamLines } from './lineStreamer';
-import type { GrepMatch } from './messages';
 
 /**
  * Stream ripgrep matches as delta chunks of GrepMatch[].
