@@ -9,7 +9,6 @@ export function filterWithFzf(query: string, files: string[], signal?: AbortSign
 
         const proc = cp.spawn('fzf', ['--filter', query], {
             stdio: ['pipe', 'pipe', 'pipe'],
-            ...(process.platform === 'win32' ? { shell: true } : {}),
         });
 
         signal?.addEventListener('abort', () => {
