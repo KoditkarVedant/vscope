@@ -4,6 +4,7 @@
   "description": "Fuzzy file search and live grep for VS Code, powered by fzf and ripgrep",
   "version": "0.0.1",
   "publisher": "PLACEHOLDER",
+  "icon": "logo.png",
   "license": "MIT",
   "keywords": ["fzf", "fuzzy", "search", "grep", "ripgrep", "files", "finder"],
   "categories": ["Search"],
