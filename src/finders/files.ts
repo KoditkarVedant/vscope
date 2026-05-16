@@ -1,5 +1,6 @@
 import * as path from 'path';
 import * as vscode from 'vscode';
+import { getRgPath } from '../rgPath';
 import { streamLines } from './lineStreamer';
 
 /**
@@ -14,7 +15,7 @@ export async function* streamFiles(
     try {
         let yieldedAny = false;
         for await (const chunk of streamLines({
-            cmd: 'rg',
+            cmd: getRgPath(),
             args: ['--files', '--hidden', '--glob', '!.git', '--', '.'],
             cwd: workspaceRoot,
             signal,

@@ -1,4 +1,5 @@
 import type { GrepMatch } from '../messages';
+import { getRgPath } from '../rgPath';
 import { streamLines } from './lineStreamer';
 
 /**
@@ -11,7 +12,7 @@ export async function* runGrep(
     signal?: AbortSignal
 ): AsyncGenerator<GrepMatch[]> {
     for await (const lines of streamLines({
-        cmd: 'rg',
+        cmd: getRgPath(),
         args: ['--json', '--smart-case', '--', query, '.'],
         cwd: workspaceRoot,
         signal,
