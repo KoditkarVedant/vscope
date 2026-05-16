@@ -25,13 +25,11 @@
     "keybindings": [
       {
         "command": "vscope.search",
-        "key": "alt+shift+f",
-        "mac": "alt+shift+f"
+        "key": "alt+; f"
       },
       {
         "command": "vscope.grep",
-        "key": "alt+shift+g",
-        "mac": "alt+shift+g"
+        "key": "alt+; g"
       },
       {
         "command": "vscope.keydown",
