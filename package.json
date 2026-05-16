@@ -6,6 +6,12 @@
   "publisher": "vedant",
   "icon": "logo.png",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/KoditkarVedant/vscope.git"
+  },
+  "bugs": "https://github.com/KoditkarVedant/vscope/issues",
+  "homepage": "https://github.com/KoditkarVedant/vscope#readme",
   "keywords": ["fzf", "fuzzy", "search", "grep", "ripgrep", "files", "finder"],
   "categories": ["Search"],
   "engines": {
