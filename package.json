@@ -12,8 +12,23 @@
   },
   "bugs": "https://github.com/KoditkarVedant/vscope/issues",
   "homepage": "https://github.com/KoditkarVedant/vscope#readme",
-  "keywords": ["fzf", "fuzzy", "search", "grep", "ripgrep", "files", "finder"],
-  "categories": ["Search"],
+  "keywords": [
+    "fuzzy finder",
+    "fzf",
+    "fuzzy",
+    "search",
+    "grep",
+    "ripgrep",
+    "files",
+    "finder",
+    "telescope",
+    "fast",
+    "neovim",
+    "vim"
+  ],
+  "categories": [
+    "Other"
+  ],
   "engines": {
     "vscode": "^1.85.0"
   },
