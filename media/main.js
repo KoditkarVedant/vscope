@@ -339,7 +339,7 @@ function escHtml(s) {
 }
 
 // Returns indices in str that greedily match the characters of query in order.
-function fuzzyPositions(query, str) {
+function greedyMatch(query, str) {
     const q = query.toLowerCase();
     const s = str.toLowerCase();
     const positions = [];
@@ -351,6 +351,17 @@ function fuzzyPositions(query, str) {
         si = idx + 1;
     }
     return positions;
+}
+
+// Like greedyMatch but tries to match entirely within the filename first.
+function fuzzyPositions(query, str) {
+    if (!query) return [];
+    const nameStart = str.lastIndexOf('/') + 1;
+    if (nameStart > 0) {
+        const namePositions = greedyMatch(query, str.slice(nameStart));
+        if (namePositions.length === query.length) return namePositions.map(p => p + nameStart);
+    }
+    return greedyMatch(query, str);
 }
 
 // Wraps matched positions in <span class="match">, grouping consecutive runs.
