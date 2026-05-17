@@ -65,7 +65,7 @@ export class FzfPanel {
         );
 
         setContext(true);
-        this._search.loadFiles();
+        this._search.startBrowse();
     }
 
     public setMode(mode: PanelMode): void {

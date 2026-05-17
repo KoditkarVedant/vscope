@@ -128,6 +128,16 @@ body {
   white-space: nowrap;
 }
 
+#counter.loading::after {
+  content: '…';
+  animation: ellipsis-pulse 1s steps(1) infinite;
+}
+
+@keyframes ellipsis-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
 #results {
   flex: 1;
   overflow-y: auto;

@@ -89,6 +89,8 @@ let previewLoading     = false;
 let queryDebounce   = null;
 /** @type {ReturnType<typeof setTimeout> | null} */
 let previewDebounce = null;
+/** @type {ReturnType<typeof setTimeout> | null} */
+let counterDebounce = null;
 
 // ── DOM refs ──────────────────────────────────────────────────────────────────
 
@@ -314,7 +316,7 @@ const appendQueue = createRafCoalescer(/** @param {AppendMsg[]} batch */ (batch)
 
     if (nextTotal !== currentTotal || currentFiltered) {
         currentTotal = nextTotal;
-        updateCounter();
+        scheduleCounter();
     }
     virt.setCount(listLength());
     if (firstAppendOfQuery) schedulePreview();
@@ -500,9 +502,36 @@ window.addEventListener('message', ({ data: msg }) => {
         currentTotal = msg.total;
         selectedIdx = 0;
         resultsList.scrollTop = 0;
+        setLoading(false);
         updateCounter();
         virt.invalidate();
         virt.setCount(0);
+
+    } else if (msg.type === 'resultsLoading') {
+        lastQueryId  = msg.queryId;
+        currentQuery = msg.query;
+        appendQueue.clear();
+        setLoading(true);
+
+    } else if (msg.type === 'resultsReplace') {
+        if (msg.queryId !== lastQueryId) return;
+        setLoading(false);
+        appendQueue.clear();
+        if (msg.mode === 'grep') {
+            grepMatches = /** @type {any[]} */ (msg.items);
+            results = [];
+        } else {
+            results = /** @type {string[]} */ (msg.items);
+            grepMatches = [];
+        }
+        currentTotal    = msg.total;
+        currentFiltered = true;
+        selectedIdx = 0;
+        resultsList.scrollTop = 0;
+        updateCounter();
+        virt.invalidate();
+        virt.setCount(listLength());
+        schedulePreview();
 
     } else if (msg.type === 'resultsAppend') {
         // Filter stale messages here so the queue stays small. Heavy work runs in the rAF
@@ -572,7 +601,18 @@ function applyMode(newMode) {
     searchInput.focus();
 }
 
+function setLoading(on) {
+    counter.classList.toggle('loading', on);
+}
+
+function scheduleCounter() {
+    clearTimeout(counterDebounce);
+    counterDebounce = setTimeout(updateCounter, 50);
+}
+
 function updateCounter() {
+    clearTimeout(counterDebounce);
+    counterDebounce = null;
     if (mode === 'grep') {
         counter.textContent = currentTotal ? `${currentTotal} matches` : '';
     } else {

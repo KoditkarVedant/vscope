@@ -1,19 +1,12 @@
-import { chunkArray } from './finders/chunker';
 import { streamFiles } from './finders/files';
+import { fuzzyFiles } from './finders/fuzzyFiles';
 import { runGrep } from './finders/text';
-import { filterWithFzf } from './fzfProcess';
 import type { PanelMode, ToWebviewMessage } from './messages';
 
-const BROWSE_CHUNK_SIZE = 5000;
-
 export class SearchEngine {
-    private _files: string[] = [];
-    private _filesLoaded = false;
-    private _filesLoadAbort = new AbortController();
-    private _currentQuery = '';
-    private _queryId = 0;
-    private _queryAbort: AbortController | null = null;
-    private _mode: PanelMode;
+    private _mode:        PanelMode;
+    private _queryId      = 0;
+    private _activeAbort: AbortController | null = null;
 
     constructor(
         private readonly _workspaceRoot: string,
@@ -24,153 +17,95 @@ export class SearchEngine {
     }
 
     get mode(): PanelMode { return this._mode; }
-    get files(): string[] { return this._files; }
 
-    async loadFiles(): Promise<void> {
-        const signal = this._filesLoadAbort.signal;
-        if (this._mode === 'files' && !this._currentQuery) {
-            this._post({
-                type: 'resultsReset',
-                queryId: this._queryId,
-                mode: 'files',
-                query: '',
-                filtered: false,
-                total: this._files.length,
-            });
-        }
-        try {
-            for await (const chunk of streamFiles(this._workspaceRoot, signal)) {
-                if (signal.aborted) return;
-                this._files.push(...chunk);
-                // Only forward chunks if the user is currently looking at the browse view.
-                // After a query+clear cycle, queryId advances; we attach to whatever's current.
-                if (this._mode === 'files' && !this._currentQuery) {
-                    this._post({
-                        type: 'resultsAppend',
-                        queryId: this._queryId,
-                        mode: 'files',
-                        items: chunk,
-                        total: this._files.length,
-                    });
-                }
-            }
-        } finally {
-            this._filesLoaded = true;
-        }
+    startBrowse(): void {
+        this._cancelActive();
+        const ctrl = new AbortController();
+        this._activeAbort = ctrl;
+        const qid = ++this._queryId;
+
+        this._post({ type: 'resultsReset', queryId: qid, mode: 'files', query: '', filtered: false, total: 0 });
+        void this._streamBrowse(qid, ctrl.signal);
     }
 
     setMode(mode: PanelMode): void {
         this._mode = mode;
-        this._currentQuery = '';
-        this._queryAbort?.abort();
-        this._queryAbort = null;
+        this._cancelActive();
+
         if (mode === 'files') {
-            void this._startBrowse();
+            this.startBrowse();
         } else {
-            this._post({
-                type: 'resultsReset',
-                queryId: ++this._queryId,
-                mode: 'grep',
-                query: '',
-                filtered: false,
-                total: 0,
-            });
+            this._post({ type: 'resultsReset', queryId: ++this._queryId, mode: 'grep', query: '', filtered: false, total: 0 });
         }
     }
 
     async handleQuery(value: string): Promise<void> {
-        this._currentQuery = value;
-        this._queryAbort?.abort();
-        this._queryAbort = new AbortController();
-        const signal = this._queryAbort.signal;
+        this._cancelActive();
+        const ctrl = new AbortController();
+        this._activeAbort = ctrl;
+        const { signal } = ctrl;
         const qid = ++this._queryId;
 
         if (this._mode === 'grep') {
-            this._post({
-                type: 'resultsReset',
-                queryId: qid,
-                mode: 'grep',
-                query: value,
-                filtered: !!value,
-                total: 0,
-            });
-            if (!value) return;
-            try {
-                let total = 0;
-                for await (const matches of runGrep(value, this._workspaceRoot, signal)) {
-                    if (signal.aborted || qid !== this._queryId) return;
-                    total += matches.length;
-                    this._post({
-                        type: 'resultsAppend',
-                        queryId: qid,
-                        mode: 'grep',
-                        items: matches,
-                        total,
-                    });
-                }
-            } catch {
-                // rg errors / aborts handled silently
-            }
+            await this._runGrep(value, qid, signal);
             return;
         }
 
-        // files mode
-        if (!value) {
-            await this._startBrowse(qid);
+        if (!value.trim()) {
+            void this._streamBrowse(qid, signal);
             return;
         }
 
-        this._post({
-            type: 'resultsReset',
-            queryId: qid,
-            mode: 'files',
-            query: value,
-            filtered: true,
-            total: this._files.length,
-        });
-
-        const results = await filterWithFzf(value, this._files, signal);
-        if (signal.aborted || qid !== this._queryId) return;
-        if (results.length > 0) {
-            this._post({
-                type: 'resultsAppend',
-                queryId: qid,
-                mode: 'files',
-                items: results,
-                total: this._files.length,
-            });
-        }
+        await this._runFuzzyFiles(value, qid, signal);
     }
 
     cancelPending(): void {
-        this._queryAbort?.abort();
-        this._queryAbort = null;
-        this._filesLoadAbort.abort();
+        this._cancelActive();
     }
 
-    private async _startBrowse(reuseQid?: number): Promise<void> {
-        const qid = reuseQid ?? ++this._queryId;
-        const total = this._files.length;
-        this._post({
-            type: 'resultsReset',
-            queryId: qid,
-            mode: 'files',
-            query: '',
-            filtered: false,
-            total,
-        });
-        if (total === 0) return;
-        // Re-emit cached files via chunker so we yield to the event loop between chunks.
-        // Keeps the webview responsive to key events while bursts of appends are processed.
-        for await (const items of chunkArray(this._files, BROWSE_CHUNK_SIZE)) {
-            if (qid !== this._queryId) return;
-            this._post({
-                type: 'resultsAppend',
-                queryId: qid,
-                mode: 'files',
-                items,
-                total,
-            });
+    // ── Private ───────────────────────────────────────────────────────────────
+
+    private _cancelActive(): void {
+        this._activeAbort?.abort();
+        this._activeAbort = null;
+    }
+
+    private async _streamBrowse(qid: number, signal: AbortSignal): Promise<void> {
+        this._post({ type: 'resultsReset', queryId: qid, mode: 'files', query: '', filtered: false, total: 0 });
+        let total = 0;
+        try {
+            for await (const chunk of streamFiles(this._workspaceRoot, signal)) {
+                if (signal.aborted || qid !== this._queryId) return;
+                total += chunk.length;
+                this._post({ type: 'resultsAppend', queryId: qid, mode: 'files', items: chunk, total });
+            }
+        } catch {
+            // rg not available — findFiles fallback inside streamFiles handles it
+        }
+    }
+
+    private async _runFuzzyFiles(value: string, qid: number, signal: AbortSignal): Promise<void> {
+        this._post({ type: 'resultsLoading', queryId: qid, query: value });
+
+        const items = await fuzzyFiles(this._workspaceRoot, value, signal);
+        if (signal.aborted || qid !== this._queryId) return;
+
+        this._post({ type: 'resultsReplace', queryId: qid, mode: 'files', items, total: items.length });
+    }
+
+    private async _runGrep(value: string, qid: number, signal: AbortSignal): Promise<void> {
+        this._post({ type: 'resultsReset', queryId: qid, mode: 'grep', query: value, filtered: !!value, total: 0 });
+        if (!value) return;
+
+        try {
+            let total = 0;
+            for await (const matches of runGrep(value, this._workspaceRoot, signal)) {
+                if (signal.aborted || qid !== this._queryId) return;
+                total += matches.length;
+                this._post({ type: 'resultsAppend', queryId: qid, mode: 'grep', items: matches, total });
+            }
+        } catch {
+            // rg errors handled silently
         }
     }
 }

@@ -2,29 +2,14 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { getRgPath } from '../rgPath';
 import { streamLines } from './lineStreamer';
+import { readRgFilesConfig, buildRgFilesArgs } from './rgFilesArgs';
 
-/**
- * Stream workspace files as delta chunks.
- * Primary: rg --files (respects .gitignore).
- * Fallback: vscode.workspace.findFiles (single emit).
- */
 export async function* streamFiles(
     workspaceRoot: string,
     signal?: AbortSignal
 ): AsyncGenerator<string[]> {
-    const cfg         = vscode.workspace.getConfiguration('vscope.files');
-    const showHidden  = cfg.get<boolean>('showHidden', true);
-    const respectGit  = cfg.get<boolean>('respectGitignore', true);
-    const exclude     = cfg.get<string[]>('exclude', []);
-
-    const args: string[] = ['--files'];
-    if (showHidden)  args.push('--hidden');
-    if (!respectGit) args.push('--no-ignore');
-    args.push('--glob', '!.git');
-    for (const pattern of exclude) {
-        args.push('--glob', `!${pattern}`);
-    }
-    args.push('--', '.');
+    const config = readRgFilesConfig();
+    const args   = buildRgFilesArgs(config);
 
     try {
         let yieldedAny = false;
@@ -49,7 +34,8 @@ export async function* streamFiles(
 
     if (signal?.aborted) return;
 
-    const excludeGlobs = ['**/node_modules/**', '**/.git/**', ...exclude];
+    const { showHidden, exclude } = config;
+    const excludeGlobs   = ['**/node_modules/**', '**/.git/**', ...exclude];
     const includePattern = showHidden ? '**/*' : '**/[^.]*';
     const excludePattern = `{${excludeGlobs.join(',')}}`;
 
