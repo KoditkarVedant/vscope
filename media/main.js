@@ -665,10 +665,12 @@ function scrollPreviewX(px) { previewBody.scrollLeft += px; }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+const PATH_SEP = (typeof window.__pathSep__ === 'string' ? window.__pathSep__ : '/');
+
 function basename(p) { return p.split('/').pop() || p; }
 function dirPart(p) {
     const parts = p.split('/');
-    return parts.length > 1 ? parts.slice(0, -1).join('/') : '';
+    return parts.length > 1 ? parts.slice(0, -1).join(PATH_SEP) : '';
 }
 function extBadge(p) {
     const name = basename(p);

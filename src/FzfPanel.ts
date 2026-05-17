@@ -183,6 +183,7 @@ export class FzfPanel {
       </div>
     </div>
   </div>
+  <script nonce="${nonce}">window.__pathSep__ = '${process.platform === 'win32' ? '\\\\' : '/'}';</script>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
 </html>`;
