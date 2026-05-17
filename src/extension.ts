@@ -10,11 +10,11 @@ async function getPanel() {
 
 export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
-        vscode.commands.registerCommand('vscope.search', async () => {
+        vscode.commands.registerCommand('vscope.findFiles', async () => {
             const FzfPanel = await getPanel();
             FzfPanel.createOrShow(context, 'files');
         }),
-        vscode.commands.registerCommand('vscope.grep', async () => {
+        vscode.commands.registerCommand('vscope.liveGrep', async () => {
             const FzfPanel = await getPanel();
             FzfPanel.createOrShow(context, 'grep');
         }),

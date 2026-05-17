@@ -37,21 +37,21 @@
   "contributes": {
     "commands": [
       {
-        "command": "vscope.search",
-        "title": "VScope: Fuzzy File Search"
+        "command": "vscope.findFiles",
+        "title": "VScope: Find Files"
       },
       {
-        "command": "vscope.grep",
+        "command": "vscope.liveGrep",
         "title": "VScope: Live Grep"
       }
     ],
     "keybindings": [
       {
-        "command": "vscope.search",
+        "command": "vscope.findFiles",
         "key": "alt+; f"
       },
       {
-        "command": "vscope.grep",
+        "command": "vscope.liveGrep",
         "key": "alt+; g"
       },
       {
