@@ -2,7 +2,7 @@
 
 Fuzzy file search and live grep for VS Code, powered by [fzf](https://github.com/junegunn/fzf) and [ripgrep](https://github.com/BurntSushi/ripgrep). Inspired by [Telescope.nvim](https://github.com/nvim-telescope/telescope.nvim).
 
-![VScope in action](vscope-shot-video.gif)
+![VScope in action](https://raw.githubusercontent.com/KoditkarVedant/vscope/main/vscope-shot-video.gif)
 
 ## Features
 

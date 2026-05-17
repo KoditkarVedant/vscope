@@ -6,6 +6,7 @@ src/**
 esbuild.js
 logo.ico
 package-lock.json
+vscope-shot-video.gif
 **/tsconfig.json
 **/*.map
 **/*.ts
