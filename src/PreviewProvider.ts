@@ -1,18 +1,17 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-// Type-only imports are erased at compile, so they don't trigger a require('shiki') here —
-// shiki itself is loaded dynamically inside getHighlighter() on first preview.
-import type {
-    Highlighter,
-    BundledLanguage,
-    SpecialLanguage,
-    ThemedToken,
-    GrammarState,
-    ThemeRegistrationRaw,
-} from 'shiki';
+import { createHighlighterCore } from '@shikijs/core';
+import { createOnigurumaEngine } from '@shikijs/engine-oniguruma';
+import getWasm from '@shikijs/engine-oniguruma/wasm-inlined';
+import darkPlus  from '@shikijs/themes/dark-plus';
+import lightPlus from '@shikijs/themes/light-plus';
+import type { HighlighterCore, SpecialLanguage, ThemedToken, GrammarState, ThemeRegistrationRaw } from '@shikijs/core';
 import type { ToWebviewMessage } from './messages';
 import extToLang from './ext-to-lang.json';
+import { BUNDLED_LANGS, BUNDLED_LANG_SET } from './shikiLangs';
+
+type BundledLanguage = string;
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -21,19 +20,15 @@ const MAX_FILE_CACHE = 5;   // max files kept in memory
 
 // ── Highlighter singleton ─────────────────────────────────────────────────────
 
-let _hl: Promise<Highlighter> | null = null;
-let _bundledLangSet: Set<string> | null = null;
+let _hl: Promise<HighlighterCore> | null = null;
 
-function getHighlighter(): Promise<Highlighter> {
+function getHighlighter(): Promise<HighlighterCore> {
     if (!_hl) {
-        _hl = (async () => {
-            const shiki = await import('shiki');
-            _bundledLangSet = new Set(Object.keys(shiki.bundledLanguages));
-            return shiki.createHighlighter({
-                themes: ['dark-plus', 'light-plus'],
-                langs:  [],
-            });
-        })().catch((e) => { _hl = null; throw e; });
+        _hl = createHighlighterCore({
+            themes: [darkPlus, lightPlus],
+            langs:  BUNDLED_LANGS,
+            engine: createOnigurumaEngine(getWasm),
+        }).catch((e) => { _hl = null; throw e; });
     }
     return _hl;
 }
@@ -60,7 +55,7 @@ function detectLanguage(filePath: string): BundledLanguage | SpecialLanguage {
     const lang = (extToLang as Record<string, string>)[ext];
     // detectLanguage is always called after getHighlighter resolves (see _sendInitial), so
     // _bundledLangSet is populated. If unexpectedly called earlier, fall through to plaintext.
-    return (lang && _bundledLangSet?.has(lang) ? lang as BundledLanguage : 'plaintext');
+    return (lang && BUNDLED_LANG_SET.has(lang) ? lang as BundledLanguage : 'plaintext');
 }
 
 // ── JSONC helpers ─────────────────────────────────────────────────────────────
@@ -278,11 +273,7 @@ export class PreviewProvider {
         const hl    = await getHighlighter();
         const theme = await this._resolveTheme();
 
-        let lang: BundledLanguage | SpecialLanguage = detectLanguage(relPath);
-        if (lang !== 'plaintext' && !hl.getLoadedLanguages().includes(lang)) {
-            try { await hl.loadLanguage(lang); }
-            catch { lang = 'plaintext'; }
-        }
+        const lang: BundledLanguage | SpecialLanguage = detectLanguage(relPath);
 
         // Split file into fixed-size line chunks
         const allLines = raw.split('\n');
