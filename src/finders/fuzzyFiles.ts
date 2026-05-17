@@ -40,9 +40,14 @@ export function fuzzyFiles(
             resolve(stdout.split('\n').filter(Boolean).map(normalize).slice(0, maxResults));
         });
 
-        fzf.on('error', () => {
+        fzf.on('error', (err: NodeJS.ErrnoException) => {
             signal?.removeEventListener('abort', abort);
             if (signal?.aborted) return;
+            if (err.code === 'ENOENT') {
+                vscode.window.showWarningMessage(
+                    `VScope: fzf binary not found ("${fzfBin}"). Install fzf or set vscope.fzf.path.`
+                );
+            }
             resolve([]);
         });
     });
