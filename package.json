@@ -2,7 +2,7 @@
   "name": "vscope",
   "displayName": "VScope",
   "description": "Fuzzy file search and live grep for VS Code, powered by fzf and ripgrep",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "publisher": "vedant",
   "icon": "logo.png",
   "license": "MIT",
