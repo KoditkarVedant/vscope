@@ -111,7 +111,8 @@ document.getElementById('overlay').addEventListener('mousedown', (e) => {
     if (e.target !== searchInput && !leftPane.classList.contains('hidden')) e.preventDefault();
 });
 
-window.addEventListener('focus', () => searchInput.focus());
+window.addEventListener('focus', () => { document.body.classList.remove('inactive'); searchInput.focus(); });
+window.addEventListener('blur',  () => document.body.classList.add('inactive'));
 
 // ── Pane resize ───────────────────────────────────────────────────────────────
 

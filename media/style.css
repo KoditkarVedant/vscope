@@ -189,6 +189,11 @@ body {
   color: var(--vscode-list-activeSelectionForeground, #ffffff);
 }
 
+body.inactive .result-row.selected {
+  background: var(--vscode-list-inactiveSelectionBackground, #37373d);
+  color: var(--vscode-list-inactiveSelectionForeground, var(--vscode-foreground, #cccccc));
+}
+
 .result-row.selected .file-name {
   color: var(--vscode-list-activeSelectionForeground, #ffffff);
 }
