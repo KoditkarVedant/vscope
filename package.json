@@ -102,7 +102,39 @@
         "key": "alt+.",
         "when": "vscope.active"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "VScope",
+      "properties": {
+        "vscope.fzf.path": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path to the `fzf` binary. Leave empty to use `fzf` from your `PATH`."
+        },
+        "vscope.files.showHidden": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include hidden files and directories (names starting with `.`) in file search results."
+        },
+        "vscope.files.respectGitignore": {
+          "type": "boolean",
+          "default": true,
+          "description": "Exclude files listed in .gitignore from file search results."
+        },
+        "vscope.files.exclude": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "markdownDescription": "Additional glob patterns to exclude from file search (e.g. `[\"**/*.log\", \"dist/**\"]`)."
+        },
+        "vscope.files.maxResults": {
+          "type": "number",
+          "default": 200,
+          "minimum": 1,
+          "description": "Maximum number of results returned by file search."
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "node esbuild.js --production",
