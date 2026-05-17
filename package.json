@@ -1,7 +1,7 @@
 {
   "name": "vscope",
-  "displayName": "VScope",
-  "description": "Fuzzy file search and live grep for VS Code, powered by fzf and ripgrep",
+  "displayName": "VScope - Telescope for VS Code",
+  "description": "Bring Neovim's Telescope experience to VS Code — fuzzy file finder and live grep powered by fzf and ripgrep",
   "version": "0.0.2",
   "publisher": "vedant",
   "icon": "logo.png",
@@ -14,17 +14,15 @@
   "homepage": "https://github.com/KoditkarVedant/vscope#readme",
   "keywords": [
     "fuzzy finder",
-    "fzf",
-    "fuzzy",
-    "search",
-    "grep",
-    "ripgrep",
-    "files",
-    "finder",
     "telescope",
-    "fast",
+    "live grep",
+    "fzf",
+    "ripgrep",
+    "file search",
     "neovim",
-    "vim"
+    "vim",
+    "fuzzy search",
+    "grep"
   ],
   "categories": [
     "Other"
