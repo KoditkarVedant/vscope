@@ -104,7 +104,8 @@ export class FzfPanel {
 
             case 'select':
                 if (msg.file) {
-                    const workspaceRoot = vscode.workspace.workspaceFolders![0].uri.fsPath;
+                    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+                    if (!workspaceRoot) return;
                     const abs = path.join(workspaceRoot, msg.file);
                     const uri = vscode.Uri.file(abs);
                     if (msg.line !== undefined) {
