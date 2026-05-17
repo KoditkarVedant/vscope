@@ -49,11 +49,11 @@ export async function* streamFiles(
 
     if (signal?.aborted) return;
 
-    const uris = await vscode.workspace.findFiles(
-        '**/*',
-        '{**/node_modules/**,**/.git/**}',
-        20_000
-    );
+    const excludeGlobs = ['**/node_modules/**', '**/.git/**', ...exclude];
+    const includePattern = showHidden ? '**/*' : '**/[^.]*';
+    const excludePattern = `{${excludeGlobs.join(',')}}`;
+
+    const uris = await vscode.workspace.findFiles(includePattern, excludePattern);
     if (signal?.aborted) return;
     const files = uris.map((u) => path.relative(workspaceRoot, u.fsPath).replace(/\\/g, '/'));
     if (files.length > 0) yield files;
