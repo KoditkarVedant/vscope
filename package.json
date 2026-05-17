@@ -2,7 +2,7 @@
   "name": "vscope",
   "displayName": "VScope - Telescope for VS Code",
   "description": "Bring Neovim's Telescope experience to VS Code — fuzzy file finder and live grep powered by fzf and ripgrep",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "publisher": "vedant",
   "icon": "logo.png",
   "license": "MIT",
