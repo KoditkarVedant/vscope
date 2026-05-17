@@ -62,6 +62,8 @@ export async function* streamLines(opts: LineStreamerOptions): AsyncGenerator<st
         signal?.addEventListener('abort', abortHandler);
     }
 
+    proc.stderr?.resume(); // drain to prevent the buffer filling and stalling the process
+
     proc.stdout.on('data', (d: Buffer) => {
         buf += d.toString('utf-8');
         const parts = buf.split('\n');
