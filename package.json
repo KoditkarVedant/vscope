@@ -122,8 +122,8 @@
         "vscope.files.exclude": {
           "type": "array",
           "items": { "type": "string" },
-          "default": [],
-          "markdownDescription": "Additional glob patterns to exclude from file search (e.g. `[\"**/*.log\", \"dist/**\"]`)."
+          "default": ["**/node_modules/**", "**/.git/**"],
+          "markdownDescription": "Glob patterns to exclude from file search. Defaults to `node_modules` and `.git`. (e.g. `[\"**/*.log\", \"dist/**\"]`)."
         },
         "vscope.files.maxResults": {
           "type": "number",

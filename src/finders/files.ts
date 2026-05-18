@@ -35,9 +35,8 @@ export async function* streamFiles(
     if (signal?.aborted) return;
 
     const { showHidden, exclude } = config;
-    const excludeGlobs   = ['**/node_modules/**', '**/.git/**', ...exclude];
     const includePattern = showHidden ? '**/*' : '**/[^.]*';
-    const excludePattern = `{${excludeGlobs.join(',')}}`;
+    const excludePattern = exclude.length ? `{${exclude.join(',')}}` : undefined;
 
     const uris = await vscode.workspace.findFiles(includePattern, excludePattern);
     if (signal?.aborted) return;
