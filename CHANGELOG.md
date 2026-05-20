@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.0.4
+
+### Breaking changes
+
+- Renamed `vscope.files.*` settings to `vscope.findFiles.*` to match picker name
+  - `vscope.files.showHidden` → `vscope.findFiles.showHidden`
+  - `vscope.files.respectGitignore` → `vscope.findFiles.respectGitignore`
+  - `vscope.files.exclude` → `vscope.findFiles.exclude`
+- Removed `vscope.files.maxResults` — file search now returns all matches; the virtualizer handles rendering large lists efficiently
+
+### New
+
+- `vscope.findFiles.additionalArgs` — pass extra arguments to ripgrep for file search (e.g. `["--follow", "--type", "ts"]`)
+- Default `vscope.findFiles.exclude` now includes `node_modules` and `.git`
+- Loading spinner (codicon-style) shown during live grep searches
+
+### Improvements
+
+- fzf uses `--scheme=path` for filename-aware scoring — matches in filenames rank above matches in directory segments
+- Filtered counter now shows `matches / total files` (e.g. `200 / 30213`) instead of `matches / matches`
+
 ## 0.0.3
 
 ### New
