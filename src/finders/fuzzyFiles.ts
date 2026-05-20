@@ -15,7 +15,7 @@ export function fuzzyFiles(
 
         const rgArgs = buildRgFilesArgs(readRgFilesConfig());
         const rg  = cp.spawn(getRgPath(), rgArgs, { cwd: workspaceRoot, stdio: ['ignore', 'pipe', 'pipe'] });
-        const fzf = cp.spawn(fzfBin, ['--filter', query], { stdio: ['pipe', 'pipe', 'pipe'] });
+        const fzf = cp.spawn(fzfBin, ['--filter', query, '--scheme=path'], { stdio: ['pipe', 'pipe', 'pipe'] });
 
         const cleanup = () => {
             if (!rg.killed)  rg.kill();
