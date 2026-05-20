@@ -155,20 +155,58 @@ function tokenStyle(t: ThemedToken): string {
     return parts.join(';');
 }
 
+type MarkedToken = ThemedToken & { __match?: boolean };
+
+// Splits any token that overlaps [matchStart, matchEnd) into up to three parts
+// (pre-match, match, post-match) so the matched portion can be wrapped separately.
+// Tracks offset manually so we don't depend on Shiki's `tok.offset` being line-relative
+// (it can be chunk-relative depending on tokenisation path).
+function injectMatch(tokens: ThemedToken[], matchStart: number, matchEnd: number): MarkedToken[] {
+    const result: MarkedToken[] = [];
+    let offset = 0;
+    for (const tok of tokens) {
+        const start = offset;
+        const end   = start + tok.content.length;
+        offset = end;
+        if (end <= matchStart || start >= matchEnd) {
+            result.push(tok);
+            continue;
+        }
+        const localStart = Math.max(0, matchStart - start);
+        const localEnd   = Math.min(tok.content.length, matchEnd - start);
+        if (localStart > 0) {
+            result.push({ ...tok, content: tok.content.slice(0, localStart) });
+        }
+        result.push({ ...tok, content: tok.content.slice(localStart, localEnd), __match: true });
+        if (localEnd < tok.content.length) {
+            result.push({ ...tok, content: tok.content.slice(localEnd) });
+        }
+    }
+    return result;
+}
+
 function buildChunkHtml(
-    tokens:    ThemedToken[][],
-    fg:        string,
-    bg:        string,
-    theme:     string,
-    startLine: number   // 1-indexed absolute line number of first line in this chunk
+    tokens:      ThemedToken[][],
+    fg:          string,
+    bg:          string,
+    theme:       string,
+    startLine:   number,  // 1-indexed absolute line number of first line in this chunk
+    matchLine?:  number,
+    matchCol?:   number,  // 1-indexed byte offset
+    matchLength?:number,
 ): string {
     const lines = tokens.map((lineTokens, i) => {
-        const num   = startLine + i;
-        const spans = lineTokens.map(t => {
-            const style = tokenStyle(t);
-            return style
-                ? `<span style="${style}">${escapeHtml(t.content)}</span>`
-                : escapeHtml(t.content);
+        const num = startLine + i;
+        const processed: MarkedToken[] = (num === matchLine && matchCol && matchLength)
+            ? injectMatch(lineTokens, matchCol - 1, matchCol - 1 + matchLength)
+            : lineTokens;
+        const spans = processed.map(t => {
+            const style   = tokenStyle(t);
+            const isMatch = t.__match;
+            if (style && isMatch) return `<span class="grep-match" style="${style}">${escapeHtml(t.content)}</span>`;
+            if (style)            return `<span style="${style}">${escapeHtml(t.content)}</span>`;
+            if (isMatch)          return `<span class="grep-match">${escapeHtml(t.content)}</span>`;
+            return escapeHtml(t.content);
         }).join('');
         return `<span data-line="${num}">${spans}</span>`;
     }).join('\n');
@@ -185,6 +223,9 @@ interface FileCache {
     bg:            string;
     lang:          BundledLanguage | SpecialLanguage;
     theme:         string;
+    matchLine?:    number;
+    matchCol?:     number;
+    matchLength?:  number;
 }
 
 // ── PreviewProvider ───────────────────────────────────────────────────────────
@@ -254,7 +295,7 @@ export class PreviewProvider {
         }
     }
 
-    private async _sendInitial(relPath: string, line?: number, _col?: number, _length?: number): Promise<void> {
+    private async _sendInitial(relPath: string, line?: number, col?: number, length?: number): Promise<void> {
         const abs = path.join(this._workspaceRoot, relPath);
         let raw: string;
         try {
@@ -292,6 +333,9 @@ export class PreviewProvider {
             bg:   probe.bg ?? '',
             lang,
             theme,
+            matchLine:   line,
+            matchCol:    col,
+            matchLength: length,
         };
         cache.grammarStates[0] = probe.grammarState;
 
@@ -336,6 +380,6 @@ export class PreviewProvider {
         );
         grammarStates[chunkIndex] = nextState;
 
-        return buildChunkHtml(tokens, fg, bg, theme, startLine);
+        return buildChunkHtml(tokens, fg, bg, theme, startLine, cache.matchLine, cache.matchCol, cache.matchLength);
     }
 }

@@ -3,8 +3,8 @@ export type PanelMode = 'files' | 'grep';
 export interface GrepMatch {
     file: string;
     line: number;
-    col: number;     // 1-indexed byte offset of match start within line
-    length: number;  // byte length of the matched text
+    col: number;     // 1-indexed character offset of match start within line
+    length: number;  // character length of the matched text
     text: string;
 }
 

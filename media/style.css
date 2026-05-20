@@ -313,6 +313,12 @@ body.inactive .result-row.selected {
   background: transparent;
 }
 
+/* Background-only (no border/radius) so when a match spans multiple syntax tokens
+   the resulting adjacent spans still read as one continuous highlight. */
+#preview-body .grep-match {
+  background-color: var(--vscode-editor-findMatchBackground, rgba(168, 23, 0, 0.5));
+}
+
 
 /* ── Match highlight ──────────────────────────────────────────────────────── */
 
