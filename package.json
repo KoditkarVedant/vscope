@@ -130,6 +130,28 @@
           "items": { "type": "string" },
           "default": [],
           "markdownDescription": "Extra arguments passed to `ripgrep` for file search (e.g. `[\"--follow\", \"--type\", \"ts\"]`)."
+        },
+        "vscope.liveGrep.showHidden": {
+          "type": "boolean",
+          "default": true,
+          "description": "Include hidden files and directories (names starting with `.`) in live grep search."
+        },
+        "vscope.liveGrep.respectGitignore": {
+          "type": "boolean",
+          "default": true,
+          "description": "Skip files listed in .gitignore during live grep search."
+        },
+        "vscope.liveGrep.exclude": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": ["**/node_modules/**", "**/.git/**"],
+          "markdownDescription": "Glob patterns to exclude from live grep. Defaults to `node_modules` and `.git`."
+        },
+        "vscope.liveGrep.additionalArgs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "markdownDescription": "Extra arguments passed to `ripgrep` for live grep (e.g. `[\"--type\", \"ts\"]`)."
         }
       }
     }

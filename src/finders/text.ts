@@ -1,6 +1,7 @@
 import type { GrepMatch } from '../messages';
 import { getRgPath } from '../rgPath';
 import { streamLines } from './lineStreamer';
+import { readRgGrepConfig, buildRgGrepArgs } from './rgGrepArgs';
 
 /**
  * Stream ripgrep matches as delta chunks of GrepMatch[].
@@ -11,9 +12,10 @@ export async function* runGrep(
     workspaceRoot: string,
     signal?: AbortSignal
 ): AsyncGenerator<GrepMatch[]> {
+    const args = buildRgGrepArgs(readRgGrepConfig(), query);
     for await (const lines of streamLines({
         cmd: getRgPath(),
-        args: ['--json', '--smart-case', '--', query, '.'],
+        args,
         cwd: workspaceRoot,
         signal,
         chunkSize: (isFirst, count) => {
