@@ -1,6 +1,7 @@
 import * as cp from 'child_process';
 import * as vscode from 'vscode';
 import { getRgPath } from '../rgPath';
+import { logError } from '../logger';
 import { readRgFilesConfig, buildRgFilesArgs } from './rgFilesArgs';
 
 export function fuzzyFiles(
@@ -27,7 +28,10 @@ export function fuzzyFiles(
 
         // Pipe rg output directly into fzf — no JS buffer for the full file list.
         rg.stdout.pipe(fzf.stdin);
-        rg.on('error', () => { try { fzf.stdin.end(); } catch {} });
+        rg.on('error', (err) => {
+            logError('fuzzyFiles.rg', err);
+            try { fzf.stdin.end(); } catch {}
+        });
 
         let stdout = '';
         fzf.stdout.on('data', (d: Buffer) => { stdout += d.toString('utf-8'); });
@@ -41,6 +45,7 @@ export function fuzzyFiles(
         fzf.on('error', (err: NodeJS.ErrnoException) => {
             signal?.removeEventListener('abort', abort);
             if (signal?.aborted) return;
+            logError('fuzzyFiles.fzf', err);
             if (err.code === 'ENOENT') {
                 vscode.window.showWarningMessage(
                     `VScope: fzf binary not found ("${fzfBin}"). Install fzf or set vscope.fzf.path.`

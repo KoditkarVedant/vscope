@@ -1,6 +1,7 @@
 import { streamFiles } from './finders/files';
 import { fuzzyFiles } from './finders/fuzzyFiles';
 import { runGrep } from './finders/text';
+import { logError } from './logger';
 import type { PanelMode, ToWebviewMessage } from './messages';
 
 export class SearchEngine {
@@ -79,8 +80,8 @@ export class SearchEngine {
                 total += chunk.length;
                 this._post({ type: 'resultsAppend', queryId: qid, mode: 'files', items: chunk, total });
             }
-        } catch {
-            // rg not available — findFiles fallback inside streamFiles handles it
+        } catch (err) {
+            logError('streamBrowse', err);
         }
     }
 
@@ -104,8 +105,8 @@ export class SearchEngine {
                 total += matches.length;
                 this._post({ type: 'resultsAppend', queryId: qid, mode: 'grep', items: matches, total });
             }
-        } catch {
-            // rg errors handled silently
+        } catch (err) {
+            logError('runGrep', err);
         } finally {
             if (!signal.aborted && qid === this._queryId) {
                 this._post({ type: 'resultsDone', queryId: qid });
