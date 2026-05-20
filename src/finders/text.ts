@@ -37,10 +37,14 @@ function parseLine(raw: string): GrepMatch | null {
     try {
         const obj = JSON.parse(raw);
         if (obj.type !== 'match') return null;
+        const sm    = obj.data.submatches[0];
+        const start = sm?.start ?? 0;
+        const end   = sm?.end   ?? start;
         return {
             file: obj.data.path.text.replace(/\\/g, '/'),
             line: obj.data.line_number,
-            col: (obj.data.submatches[0]?.start ?? 0) + 1,
+            col: start + 1,
+            length: end - start,
             text: obj.data.lines.text.replace(/[\r\n]+$/, ''),
         };
     } catch {

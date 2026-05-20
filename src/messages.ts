@@ -3,7 +3,8 @@ export type PanelMode = 'files' | 'grep';
 export interface GrepMatch {
     file: string;
     line: number;
-    col: number;
+    col: number;     // 1-indexed byte offset of match start within line
+    length: number;  // byte length of the matched text
     text: string;
 }
 
@@ -11,7 +12,7 @@ export interface GrepMatch {
 
 export type FromWebviewMessage =
     | { type: 'query';           value: string }
-    | { type: 'preview';         file: string; line?: number }
+    | { type: 'preview';         file: string; line?: number; col?: number; length?: number }
     | { type: 'select';          file: string; line?: number; col?: number }
     | { type: 'loadMorePreview'; file: string; chunkIndex: number }
     | { type: 'ready' }

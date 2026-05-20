@@ -86,14 +86,14 @@ export class FzfPanel {
         this._disposables.forEach((d) => d.dispose());
     }
 
-    private async _handleMessage(msg: { type: string; value?: string; file?: string; line?: number; col?: number; chunkIndex?: number }) {
+    private async _handleMessage(msg: { type: string; value?: string; file?: string; line?: number; col?: number; length?: number; chunkIndex?: number }) {
         switch (msg.type) {
             case 'query':
                 await this._search.handleQuery(msg.value ?? '');
                 break;
 
             case 'preview':
-                if (msg.file) this._preview.schedule(msg.file, msg.line);
+                if (msg.file) this._preview.schedule(msg.file, msg.line, msg.col, msg.length);
                 break;
 
             case 'loadMorePreview':

@@ -675,7 +675,7 @@ function schedulePreview() {
     previewDebounce = setTimeout(() => {
         if (mode === 'grep') {
             const m = grepMatches[selectedIdx];
-            if (m) vscode.postMessage({ type: 'preview', file: m.file, line: m.line });
+            if (m) vscode.postMessage({ type: 'preview', file: m.file, line: m.line, col: m.col, length: m.length });
         } else {
             if (results[selectedIdx]) vscode.postMessage({ type: 'preview', file: results[selectedIdx] });
         }

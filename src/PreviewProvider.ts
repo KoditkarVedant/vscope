@@ -209,9 +209,9 @@ export class PreviewProvider {
         });
     }
 
-    schedule(relPath: string, line?: number): void {
+    schedule(relPath: string, line?: number, col?: number, length?: number): void {
         clearTimeout(this._debounce);
-        this._debounce = setTimeout(() => this._sendInitial(relPath, line), 80);
+        this._debounce = setTimeout(() => this._sendInitial(relPath, line, col, length), 80);
     }
 
     async loadChunk(relPath: string, chunkIndex: number): Promise<void> {
@@ -254,7 +254,7 @@ export class PreviewProvider {
         }
     }
 
-    private async _sendInitial(relPath: string, line?: number): Promise<void> {
+    private async _sendInitial(relPath: string, line?: number, _col?: number, _length?: number): Promise<void> {
         const abs = path.join(this._workspaceRoot, relPath);
         let raw: string;
         try {
