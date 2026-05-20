@@ -11,9 +11,7 @@ export function fuzzyFiles(
     return new Promise<string[]>((resolve) => {
         if (signal?.aborted) { resolve([]); return; }
 
-        const filesCfg   = vscode.workspace.getConfiguration('vscope.files');
-        const maxResults = filesCfg.get<number>('maxResults', 200);
-        const fzfBin     = vscode.workspace.getConfiguration('vscope.fzf').get<string>('path', '') || 'fzf';
+        const fzfBin = vscode.workspace.getConfiguration('vscope.fzf').get<string>('path', '') || 'fzf';
 
         const rgArgs = buildRgFilesArgs(readRgFilesConfig());
         const rg  = cp.spawn(getRgPath(), rgArgs, { cwd: workspaceRoot, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -37,7 +35,7 @@ export function fuzzyFiles(
         fzf.on('close', () => {
             signal?.removeEventListener('abort', abort);
             if (signal?.aborted) return;
-            resolve(stdout.split('\n').filter(Boolean).map(normalize).slice(0, maxResults));
+            resolve(stdout.split('\n').filter(Boolean).map(normalize));
         });
 
         fzf.on('error', (err: NodeJS.ErrnoException) => {

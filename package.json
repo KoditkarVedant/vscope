@@ -124,12 +124,6 @@
           "items": { "type": "string" },
           "default": ["**/node_modules/**", "**/.git/**"],
           "markdownDescription": "Glob patterns to exclude from file search. Defaults to `node_modules` and `.git`. (e.g. `[\"**/*.log\", \"dist/**\"]`)."
-        },
-        "vscope.files.maxResults": {
-          "type": "number",
-          "default": 200,
-          "minimum": 1,
-          "description": "Maximum number of results returned by file search."
         }
       }
     }
