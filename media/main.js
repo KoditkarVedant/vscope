@@ -514,7 +514,8 @@ window.addEventListener('message', ({ data: msg }) => {
         currentTotal = msg.total;
         selectedIdx = 0;
         resultsList.scrollTop = 0;
-        setLoading(false);
+        // Show loader while a grep query is running; clear it during browse (no work pending).
+        setLoading(msg.filtered);
         updateCounter();
         virt.invalidate();
         virt.setCount(0);
@@ -546,6 +547,10 @@ window.addEventListener('message', ({ data: msg }) => {
         virt.invalidate();
         virt.setCount(listLength());
         schedulePreview();
+
+    } else if (msg.type === 'resultsDone') {
+        if (msg.queryId !== lastQueryId) return;
+        setLoading(false);
 
     } else if (msg.type === 'resultsAppend') {
         // Filter stale messages here so the queue stays small. Heavy work runs in the rAF

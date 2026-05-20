@@ -106,6 +106,10 @@ export class SearchEngine {
             }
         } catch {
             // rg errors handled silently
+        } finally {
+            if (!signal.aborted && qid === this._queryId) {
+                this._post({ type: 'resultsDone', queryId: qid });
+            }
         }
     }
 }

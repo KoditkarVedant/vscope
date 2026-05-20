@@ -123,19 +123,27 @@ body {
 
 #counter {
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   font-size: 0.85em;
   color: var(--vscode-descriptionForeground, #858585);
   white-space: nowrap;
 }
 
-#counter.loading::after {
-  content: '…';
-  animation: ellipsis-pulse 1s steps(1) infinite;
+#counter.loading::before {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 1px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: codicon-spin 1.5s steps(30) infinite;
 }
 
-@keyframes ellipsis-pulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.3; }
+@keyframes codicon-spin {
+  to { transform: rotate(360deg); }
 }
 
 #results {
