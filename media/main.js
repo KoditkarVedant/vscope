@@ -532,11 +532,13 @@ window.addEventListener('message', ({ data: msg }) => {
         if (msg.mode === 'grep') {
             grepMatches = /** @type {any[]} */ (msg.items);
             results = [];
+            currentTotal = msg.total;
         } else {
+            // Files mode: preserve currentTotal (set by browse mode) as the denominator,
+            // so the counter reads "200 / 30213" — matches out of total files searched.
             results = /** @type {string[]} */ (msg.items);
             grepMatches = [];
         }
-        currentTotal    = msg.total;
         currentFiltered = true;
         selectedIdx = 0;
         resultsList.scrollTop = 0;
@@ -627,10 +629,13 @@ function updateCounter() {
     counterDebounce = null;
     if (mode === 'grep') {
         counter.textContent = currentTotal ? `${currentTotal} matches` : '';
+    } else if (!currentFiltered) {
+        counter.textContent = `${currentTotal} files`;
+    } else if (currentTotal >= results.length) {
+        counter.textContent = `${results.length} / ${currentTotal}`;
     } else {
-        counter.textContent = currentFiltered
-            ? `${results.length} / ${currentTotal}`
-            : `${currentTotal} files`;
+        // Browse total isn't known yet (user typed before browse finished).
+        counter.textContent = `${results.length} matches`;
     }
 }
 
