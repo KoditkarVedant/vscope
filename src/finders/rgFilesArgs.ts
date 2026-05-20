@@ -8,7 +8,7 @@ export interface RgFilesConfig {
 }
 
 export function readRgFilesConfig(): RgFilesConfig {
-    const cfg = vscode.workspace.getConfiguration('vscope.files');
+    const cfg = vscode.workspace.getConfiguration('vscope.findFiles');
     return {
         showHidden:     cfg.get<boolean>('showHidden', true),
         respectGit:     cfg.get<boolean>('respectGitignore', true),
