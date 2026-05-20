@@ -124,6 +124,12 @@
           "items": { "type": "string" },
           "default": ["**/node_modules/**", "**/.git/**"],
           "markdownDescription": "Glob patterns to exclude from file search. Defaults to `node_modules` and `.git`. (e.g. `[\"**/*.log\", \"dist/**\"]`)."
+        },
+        "vscope.files.additionalArgs": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "markdownDescription": "Extra arguments passed to `ripgrep` for file search (e.g. `[\"--follow\", \"--type\", \"ts\"]`)."
         }
       }
     }

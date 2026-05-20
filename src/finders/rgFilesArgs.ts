@@ -1,17 +1,19 @@
 import * as vscode from 'vscode';
 
 export interface RgFilesConfig {
-    showHidden:   boolean;
-    respectGit:   boolean;
-    exclude:      string[];
+    showHidden:     boolean;
+    respectGit:     boolean;
+    exclude:        string[];
+    additionalArgs: string[];
 }
 
 export function readRgFilesConfig(): RgFilesConfig {
     const cfg = vscode.workspace.getConfiguration('vscope.files');
     return {
-        showHidden: cfg.get<boolean>('showHidden', true),
-        respectGit: cfg.get<boolean>('respectGitignore', true),
-        exclude:    cfg.get<string[]>('exclude', []),
+        showHidden:     cfg.get<boolean>('showHidden', true),
+        respectGit:     cfg.get<boolean>('respectGitignore', true),
+        exclude:        cfg.get<string[]>('exclude', []),
+        additionalArgs: cfg.get<string[]>('additionalArgs', []),
     };
 }
 
@@ -23,6 +25,7 @@ export function buildRgFilesArgs(config: RgFilesConfig): string[] {
     for (const pattern of config.exclude) {
         args.push('--glob', `!${pattern}`);
     }
+    args.push(...config.additionalArgs);
     args.push('--', '.');
     return args;
 }
