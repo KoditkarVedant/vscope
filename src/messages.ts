@@ -1,4 +1,4 @@
-export type PanelMode = 'files' | 'grep';
+export type PanelMode = 'files' | 'grep' | 'references';
 
 export interface GrepMatch {
     file: string;
@@ -25,7 +25,7 @@ export type ToWebviewMessage =
     | { type: 'setMode';          mode: PanelMode }
     | { type: 'resultsReset';     queryId: number; mode: PanelMode; query: string; filtered: boolean; total: number }
     | { type: 'resultsAppend';    queryId: number; mode: 'files'; items: string[]; total: number }
-    | { type: 'resultsAppend';    queryId: number; mode: 'grep';  items: GrepMatch[]; total: number }
+    | { type: 'resultsAppend';    queryId: number; mode: 'grep' | 'references';  items: GrepMatch[]; total: number }
     | { type: 'resultsLoading';   queryId: number; query: string }
     | { type: 'resultsReplace';   queryId: number; mode: PanelMode; items: string[] | GrepMatch[]; total: number }
     | { type: 'resultsDone';      queryId: number }
