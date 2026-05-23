@@ -63,7 +63,7 @@ function createRafCoalescer(drain) {
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
-/** @type {'files' | 'grep'} */
+/** @type {'files' | 'grep' | 'references'} */
 let mode = 'files';
 
 /** @type {string[]} */
@@ -304,7 +304,7 @@ const appendQueue = createRafCoalescer(/** @param {AppendMsg[]} batch */ (batch)
 
     for (const msg of batch) {
         if (msg.queryId !== lastQueryId || msg.mode !== mode) continue;
-        if (msg.mode === 'grep') {
+        if (msg.mode === 'grep' || msg.mode === 'references') {
             for (const m of msg.items) grepMatches.push(m);
         } else {
             for (const f of msg.items) results.push(f);
@@ -401,7 +401,7 @@ function buildRow(i) {
     row.className = 'result-row' + (i === selectedIdx ? ' selected' : '');
     row.dataset.index = String(i);
 
-    if (mode === 'grep') {
+    if (mode === 'grep' || mode === 'references') {
         const m = grepMatches[i];
 
         const loc = document.createElement('span');
@@ -411,7 +411,11 @@ function buildRow(i) {
 
         const text = document.createElement('span');
         text.className = 'grep-text';
-        text.innerHTML = highlightSubstring(m.text.trimStart(), currentQuery);
+        // Grep matches the literal query in the text; references filter is a fuzzy
+        // subsequence match that can't be substring-highlighted cleanly, so skip it.
+        text.innerHTML = mode === 'grep'
+            ? highlightSubstring(m.text.trimStart(), currentQuery)
+            : escHtml(m.text.trimStart());
         row.appendChild(text);
 
         const dir = dirPart(m.file);
@@ -530,7 +534,7 @@ window.addEventListener('message', ({ data: msg }) => {
         if (msg.queryId !== lastQueryId) return;
         setLoading(false);
         appendQueue.clear();
-        if (msg.mode === 'grep') {
+        if (msg.mode === 'grep' || msg.mode === 'references') {
             grepMatches = /** @type {any[]} */ (msg.items);
             results = [];
             currentTotal = msg.total;
@@ -600,8 +604,12 @@ window.addEventListener('message', ({ data: msg }) => {
 function applyMode(newMode) {
     mode = newMode;
     modeBtn.textContent = mode;
+    modeBtn.style.display = mode === 'references' ? 'none' : '';
     searchInput.value = '';
-    searchInput.placeholder = mode === 'grep' ? 'Search content...' : 'Search files...';
+    searchInput.placeholder =
+        mode === 'grep'       ? 'Search content...'
+      : mode === 'references' ? 'Filter references...'
+      :                         'Search files...';
     results = [];
     grepMatches = [];
     selectedIdx = 0;
@@ -632,7 +640,12 @@ function scheduleCounter() {
 function updateCounter() {
     clearTimeout(counterDebounce);
     counterDebounce = null;
-    if (mode === 'grep') {
+    if (mode === 'references') {
+        const shown = grepMatches.length;
+        counter.textContent = currentTotal
+            ? (shown === currentTotal ? `${currentTotal} references` : `${shown} / ${currentTotal}`)
+            : '';
+    } else if (mode === 'grep') {
         counter.textContent = currentTotal ? `${currentTotal} matches` : '';
     } else if (!currentFiltered) {
         counter.textContent = `${currentTotal} files`;
@@ -647,7 +660,7 @@ function updateCounter() {
 // ── Navigation ────────────────────────────────────────────────────────────────
 
 function listLength() {
-    return mode === 'grep' ? grepMatches.length : results.length;
+    return (mode === 'grep' || mode === 'references') ? grepMatches.length : results.length;
 }
 
 function move(delta) {
@@ -662,7 +675,7 @@ function move(delta) {
 }
 
 function openSelected() {
-    if (mode === 'grep') {
+    if (mode === 'grep' || mode === 'references') {
         const m = grepMatches[selectedIdx];
         if (m) vscode.postMessage({ type: 'select', file: m.file, line: m.line, col: m.col });
     } else {
@@ -673,7 +686,7 @@ function openSelected() {
 function schedulePreview() {
     clearTimeout(previewDebounce);
     previewDebounce = setTimeout(() => {
-        if (mode === 'grep') {
+        if (mode === 'grep' || mode === 'references') {
             const m = grepMatches[selectedIdx];
             if (m) vscode.postMessage({ type: 'preview', file: m.file, line: m.line, col: m.col, length: m.length });
         } else {
