@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.0.5
+
+### New
+
+- `vscope.liveGrep.*` configuration settings: `showHidden`, `respectGitignore`, `exclude` (defaults to `node_modules` and `.git`), and `additionalArgs` for passing extra ripgrep arguments
+- Live grep matches are now highlighted within the preview line using the editor's find-match color
+
+### Improvements
+
+- Search errors are now logged to the "VScope" Output Channel (View → Output → VScope) instead of failing silently — no UI interruption for non-actionable errors
+
 ## 0.0.4
 
 ### Breaking changes
