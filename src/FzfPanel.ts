@@ -2,7 +2,13 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { SearchEngine } from './SearchEngine';
 import { PreviewProvider } from './PreviewProvider';
+import { getReferences } from './finders/references';
 import type { PanelMode } from './messages';
+
+export interface ReferenceContext {
+    uri: vscode.Uri;
+    position: vscode.Position;
+}
 
 export class FzfPanel {
     public static currentPanel: FzfPanel | undefined;
@@ -10,9 +16,14 @@ export class FzfPanel {
     private readonly _panel: vscode.WebviewPanel;
     private readonly _search: SearchEngine;
     private readonly _preview: PreviewProvider;
+    private readonly _workspaceRoot: string;
     private _disposables: vscode.Disposable[] = [];
 
-    public static createOrShow(context: vscode.ExtensionContext, mode: PanelMode = 'files') {
+    public static createOrShow(
+        context: vscode.ExtensionContext,
+        mode: PanelMode = 'files',
+        referenceContext?: ReferenceContext
+    ) {
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         if (!workspaceRoot) {
             vscode.window.showErrorMessage('VScope: No workspace folder is open.');
@@ -20,7 +31,11 @@ export class FzfPanel {
         }
 
         if (FzfPanel.currentPanel) {
-            FzfPanel.currentPanel.setMode(mode);
+            if (mode === 'references' && referenceContext) {
+                FzfPanel.currentPanel._enterReferencesMode(referenceContext);
+            } else {
+                FzfPanel.currentPanel.setMode(mode);
+            }
             FzfPanel.currentPanel._panel.reveal(vscode.ViewColumn.One);
             return;
         }
@@ -36,7 +51,12 @@ export class FzfPanel {
             }
         );
 
-        FzfPanel.currentPanel = new FzfPanel(panel, context.extensionUri, workspaceRoot, mode);
+        const instance = new FzfPanel(panel, context.extensionUri, workspaceRoot, mode);
+        FzfPanel.currentPanel = instance;
+
+        if (mode === 'references' && referenceContext) {
+            instance._enterReferencesMode(referenceContext);
+        }
     }
 
     private constructor(
@@ -46,6 +66,7 @@ export class FzfPanel {
         mode: PanelMode
     ) {
         this._panel = panel;
+        this._workspaceRoot = workspaceRoot;
 
         const post = (msg: object) => this._panel.webview.postMessage(msg);
         this._search  = new SearchEngine(workspaceRoot, post, mode);
@@ -65,12 +86,22 @@ export class FzfPanel {
         );
 
         setContext(true);
-        this._search.startBrowse();
+        if (mode === 'files') {
+            this._search.startBrowse();
+        }
     }
 
     public setMode(mode: PanelMode): void {
         this._search.setMode(mode);
         this._panel.webview.postMessage({ type: 'setMode', mode });
+    }
+
+    private async _enterReferencesMode(ctx: ReferenceContext): Promise<void> {
+        this._search.setMode('references');
+        this._panel.webview.postMessage({ type: 'setMode', mode: 'references' });
+        this._search.beginReferencesLoading();
+        const matches = await getReferences(ctx.uri, ctx.position, this._workspaceRoot);
+        this._search.loadReferences(matches);
     }
 
     public postToWebview(msg: object): void {

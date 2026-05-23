@@ -41,6 +41,10 @@
       {
         "command": "vscope.liveGrep",
         "title": "VScope: Live Grep"
+      },
+      {
+        "command": "vscope.lspReferences",
+        "title": "VScope: Find LSP References"
       }
     ],
     "keybindings": [
@@ -51,6 +55,10 @@
       {
         "command": "vscope.liveGrep",
         "key": "alt+; g"
+      },
+      {
+        "command": "vscope.lspReferences",
+        "key": "alt+; r"
       },
       {
         "command": "vscope.keydown",

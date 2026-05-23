@@ -18,6 +18,18 @@ export function activate(context: vscode.ExtensionContext) {
             const FzfPanel = await getPanel();
             FzfPanel.createOrShow(context, 'grep');
         }),
+        vscode.commands.registerCommand('vscope.lspReferences', async () => {
+            const editor = vscode.window.activeTextEditor;
+            if (!editor) {
+                vscode.window.showWarningMessage('VScope: Open a file and place the cursor on a symbol to find references.');
+                return;
+            }
+            const FzfPanel = await getPanel();
+            FzfPanel.createOrShow(context, 'references', {
+                uri: editor.document.uri,
+                position: editor.selection.active,
+            });
+        }),
         vscode.commands.registerCommand('vscope.keydown', async (action: string) => {
             const FzfPanel = await getPanel();
             FzfPanel.currentPanel?.postToWebview({ type: 'nav', action });
