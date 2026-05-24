@@ -9,7 +9,6 @@ export class SearchEngine {
     private _mode:        PanelMode;
     private _queryId      = 0;
     private _activeAbort: AbortController | null = null;
-    private _references:  GrepMatch[] = [];
 
     constructor(
         private readonly _workspaceRoot: string,
@@ -52,11 +51,10 @@ export class SearchEngine {
     }
 
     /**
-     * Populate the in-memory references list and display it. Called once per panel,
-     * after LSP returns. Subsequent queries filter this list client-side.
+     * Stream the references snapshot to the webview, which owns the per-keystroke
+     * filter from this point on. The host stays out of the loop until the panel closes.
      */
     loadReferences(matches: GrepMatch[]): void {
-        this._references = matches;
         const qid = ++this._queryId;
         this._post({ type: 'resultsReset', queryId: qid, mode: 'references', query: '', filtered: false, total: matches.length });
         if (matches.length > 0) {
@@ -66,6 +64,10 @@ export class SearchEngine {
     }
 
     async handleQuery(value: string): Promise<void> {
+        // References mode filters in the webview against an in-memory snapshot —
+        // matches the architecture of telescope.nvim and code-telescope. No host work.
+        if (this._mode === 'references') return;
+
         this._cancelActive();
         const ctrl = new AbortController();
         this._activeAbort = ctrl;
@@ -74,11 +76,6 @@ export class SearchEngine {
 
         if (this._mode === 'grep') {
             await this._runGrep(value, qid, signal);
-            return;
-        }
-
-        if (this._mode === 'references') {
-            this._filterReferences(value, qid);
             return;
         }
 
@@ -124,23 +121,6 @@ export class SearchEngine {
         this._post({ type: 'resultsReplace', queryId: qid, mode: 'files', items, total: items.length });
     }
 
-    private _filterReferences(value: string, qid: number): void {
-        // Webview gates resultsReplace on queryId matching its lastQueryId; emit
-        // resultsLoading first so the qid lands before the replace arrives.
-        this._post({ type: 'resultsLoading', queryId: qid, query: value });
-        const total = this._references.length;
-        const items = value
-            ? this._references.filter((m) => fuzzyMatch(value, `${m.file}:${m.text}`))
-            : this._references;
-        this._post({
-            type: 'resultsReplace',
-            queryId: qid,
-            mode: 'references',
-            items,
-            total,
-        });
-    }
-
     private async _runGrep(value: string, qid: number, signal: AbortSignal): Promise<void> {
         this._post({ type: 'resultsReset', queryId: qid, mode: 'grep', query: value, filtered: !!value, total: 0 });
         if (!value) return;
@@ -160,16 +140,4 @@ export class SearchEngine {
             }
         }
     }
-}
-
-// Subsequence match — characters of needle must appear in haystack in order
-// (case-insensitive). Same ranking signal users get from fzf without spawning a process.
-function fuzzyMatch(needle: string, haystack: string): boolean {
-    const n = needle.toLowerCase();
-    const h = haystack.toLowerCase();
-    let i = 0;
-    for (let j = 0; j < h.length && i < n.length; j++) {
-        if (h[j] === n[i]) i++;
-    }
-    return i === n.length;
 }

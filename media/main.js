@@ -72,6 +72,13 @@ let results = [];
 /** @type {Array<{file:string, line:number, col:number, text:string}>} */
 let grepMatches = [];
 
+/**
+ * Full references snapshot. Populated once via resultsAppend in references mode; the
+ * filter then runs entirely client-side against this array — no IPC per keystroke.
+ * @type {Array<{file:string, line:number, col:number, length?:number, text:string}>}
+ */
+let referencesAll = [];
+
 let selectedIdx     = 0;
 let lastQueryId     = -1;
 let currentQuery    = '';
@@ -306,6 +313,9 @@ const appendQueue = createRafCoalescer(/** @param {AppendMsg[]} batch */ (batch)
         if (msg.queryId !== lastQueryId || msg.mode !== mode) continue;
         if (msg.mode === 'grep' || msg.mode === 'references') {
             for (const m of msg.items) grepMatches.push(m);
+            if (msg.mode === 'references') {
+                for (const m of msg.items) referencesAll.push(m);
+            }
         } else {
             for (const f of msg.items) results.push(f);
         }
@@ -474,6 +484,11 @@ modeBtn.addEventListener('click', () => {
 });
 
 searchInput.addEventListener('input', () => {
+    if (mode === 'references') {
+        // Filter the in-memory snapshot in the webview — zero IPC, no debounce needed.
+        filterReferencesLocally(searchInput.value);
+        return;
+    }
     clearTimeout(queryDebounce);
     queryDebounce = setTimeout(() => {
         vscode.postMessage({ type: 'query', value: searchInput.value });
@@ -515,6 +530,7 @@ window.addEventListener('message', ({ data: msg }) => {
         appendQueue.clear();  // drop any in-flight appends from the previous query
         results = [];
         grepMatches = [];
+        referencesAll = [];
         currentTotal = msg.total;
         selectedIdx = 0;
         resultsList.scrollTop = 0;
@@ -601,6 +617,33 @@ window.addEventListener('message', ({ data: msg }) => {
 
 // ── Mode ──────────────────────────────────────────────────────────────────────
 
+function filterReferencesLocally(query) {
+    currentQuery = query;
+    grepMatches = query
+        ? referencesAll.filter((m) => subseqMatches(query, `${m.file}:${m.text}`))
+        : referencesAll.slice();
+    currentFiltered = !!query;
+    selectedIdx = 0;
+    resultsList.scrollTop = 0;
+    updateCounter();
+    virt.invalidate();
+    virt.setCount(grepMatches.length);
+    schedulePreview();
+}
+
+// Case-insensitive subsequence match — same predicate the extension was using before
+// we moved filtering client-side. Matches the algorithm telescope.nvim's fzy uses
+// for membership (scoring is a future enhancement).
+function subseqMatches(needle, haystack) {
+    const n = needle.toLowerCase();
+    const h = haystack.toLowerCase();
+    let i = 0;
+    for (let j = 0; j < h.length && i < n.length; j++) {
+        if (h[j] === n[i]) i++;
+    }
+    return i === n.length;
+}
+
 function applyMode(newMode) {
     mode = newMode;
     modeBtn.textContent = mode;
@@ -612,6 +655,7 @@ function applyMode(newMode) {
       :                         'Search files...';
     results = [];
     grepMatches = [];
+    referencesAll = [];
     selectedIdx = 0;
     lastQueryId = -1;
     currentTotal = 0;
