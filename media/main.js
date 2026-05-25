@@ -79,6 +79,9 @@ let grepMatches = [];
  */
 let referencesAll = [];
 
+/** Last query the references filter ran against — drives the prefix-narrowing fast path. */
+let lastReferencesQuery = '';
+
 let selectedIdx     = 0;
 let lastQueryId     = -1;
 let currentQuery    = '';
@@ -531,6 +534,7 @@ window.addEventListener('message', ({ data: msg }) => {
         results = [];
         grepMatches = [];
         referencesAll = [];
+        lastReferencesQuery = '';
         currentTotal = msg.total;
         selectedIdx = 0;
         resultsList.scrollTop = 0;
@@ -619,9 +623,16 @@ window.addEventListener('message', ({ data: msg }) => {
 
 function filterReferencesLocally(query) {
     currentQuery = query;
-    grepMatches = query
-        ? referencesAll.filter((m) => subseqMatches(query, `${m.file}:${m.text}`))
-        : referencesAll.slice();
+    if (!query) {
+        grepMatches = referencesAll.slice();
+    } else {
+        // Prefix-narrowing: if the new query extends the last one, filter the
+        // already-narrowed list. Saves work when the user types char by char.
+        const extending = lastReferencesQuery && query.toLowerCase().startsWith(lastReferencesQuery.toLowerCase());
+        const source = extending ? grepMatches : referencesAll;
+        grepMatches = source.filter((m) => subseqMatches(query, `${m.file}:${m.text}`));
+    }
+    lastReferencesQuery = query;
     currentFiltered = !!query;
     selectedIdx = 0;
     resultsList.scrollTop = 0;
@@ -656,6 +667,7 @@ function applyMode(newMode) {
     results = [];
     grepMatches = [];
     referencesAll = [];
+    lastReferencesQuery = '';
     selectedIdx = 0;
     lastQueryId = -1;
     currentTotal = 0;
