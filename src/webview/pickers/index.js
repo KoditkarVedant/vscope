@@ -3,6 +3,7 @@
 
 import { filesUI } from './files/ui';
 import { grepUI } from './grep/ui';
+import { referencesUI } from './references/ui';
 
 /**
  * Per-picker helpers passed from main.js into each UI. Each UI uses only the
@@ -21,11 +22,14 @@ import { grepUI } from './grep/ui';
 
 /**
  * Visual contract for a picker on the webview side. The host yields items,
- * the PickerUI turns each item into a row at the requested index.
+ * the PickerUI turns each item into a row at the requested index. Optional
+ * `filter` keeps per-keystroke work entirely in the webview when the host
+ * has already shipped a full snapshot (references mode).
  *
  * @typedef {Object} PickerUI
  * @property {'files' | 'grep' | 'references'} id
  * @property {(row: HTMLElement, i: number, ctx: PickerUIRenderCtx) => void} buildRow
+ * @property {(query: string, all: any[], prev: { query: string, items: any[] }) => { items: any[], positions?: number[][], query: string }} [filter]
  */
 
 /**
@@ -33,11 +37,12 @@ import { grepUI } from './grep/ui';
  * @property {any[]} items
  * @property {string} query
  * @property {PickerUIHelpers} helpers
+ * @property {any} [meta] Picker-specific per-render data (e.g. references positions).
  */
 
 /** @type {Record<string, PickerUI>} */
 export const pickerUIRegistry = {
-    files: filesUI,
-    grep:  grepUI,
-    // references will join this registry in the next commit.
+    files:      filesUI,
+    grep:       grepUI,
+    references: referencesUI,
 };

@@ -1,7 +1,6 @@
 // @ts-check
 /// <reference lib="dom" />
 
-import { fzyMatch } from '../algos/fzy';
 import { pickerUIRegistry } from './pickers';
 
 const vscode = acquireVsCodeApi();
@@ -418,33 +417,6 @@ function highlightSubstring(str, query) {
         + escHtml(str.slice(idx + query.length));
 }
 
-// Distributes haystack-space match positions onto the three displayed spans of a
-// references row: basename (loc), visible text, and dir.
-function splitRefDisplayPositions(positions, m) {
-    if (!positions || !positions.length) return { loc: [], text: [], dir: [] };
-    const nameStart = m.file.lastIndexOf('/') + 1;
-    const fileLen = m.file.length;
-    const textStart = fileLen + 1; // skip the ':' separator
-    const visibleText = m.text.trimStart();
-    const trimOffset = m.text.length - visibleText.length;
-
-    const loc = [];
-    const text = [];
-    const dir = [];
-    for (const p of positions) {
-        if (p < nameStart) {
-            // Drop the path separator at nameStart-1 — not part of the dir span.
-            if (p < nameStart - 1) dir.push(p);
-        } else if (p < fileLen) {
-            loc.push(p - nameStart);
-        } else if (p > fileLen) {
-            const tp = p - textStart - trimOffset;
-            if (tp >= 0 && tp < visibleText.length) text.push(tp);
-        }
-    }
-    return { loc, text, dir };
-}
-
 // Helper bundle handed to per-picker UIs via the render ctx.
 const uiHelpers = { escHtml, highlightChars, highlightSubstring, fuzzyPositions, basename, dirPart, extBadge };
 
@@ -455,36 +427,10 @@ function buildRow(i) {
     row.className = 'result-row' + (i === selectedIdx ? ' selected' : '');
     row.dataset.index = String(i);
 
-    if (mode === 'references') {
-        const m = grepMatches[i];
-        // Positions were produced by the fzy scorer alongside the filter decision;
-        // splitting just routes them onto each displayed span.
-        const refPos = splitRefDisplayPositions(referencePositions[i], m);
-
-        const loc = document.createElement('span');
-        loc.className = 'grep-loc';
-        const locDisplay = `${basename(m.file)}:${m.line}`;
-        loc.innerHTML = highlightChars(locDisplay, refPos.loc);
-        row.appendChild(loc);
-
-        const text = document.createElement('span');
-        text.className = 'grep-text';
-        const visibleText = m.text.trimStart();
-        text.innerHTML = highlightChars(visibleText, refPos.text);
-        row.appendChild(text);
-
-        const dir = dirPart(m.file);
-        if (dir) {
-            const d = document.createElement('span');
-            d.className = 'file-dir';
-            d.innerHTML = highlightChars(dir, refPos.dir);
-            row.appendChild(d);
-        }
-    } else {
-        const ui = pickerUIRegistry[mode];
-        const items = mode === 'grep' ? grepMatches : results;
-        ui.buildRow(row, i, { items, query: currentQuery, helpers: uiHelpers });
-    }
+    const ui = pickerUIRegistry[mode];
+    const items = (mode === 'grep' || mode === 'references') ? grepMatches : results;
+    const meta  = mode === 'references' ? referencePositions : null;
+    ui.buildRow(row, i, { items, query: currentQuery, helpers: uiHelpers, meta });
 
     row.addEventListener('click', () => {
         const prev = selectedIdx;
@@ -643,26 +589,14 @@ window.addEventListener('message', ({ data: msg }) => {
 
 function filterReferencesLocally(query) {
     currentQuery = query;
-    if (!query) {
-        grepMatches = referencesAll.slice();
-        referencePositions = [];
-    } else {
-        // Prefix-narrowing: if the new query extends the last one, filter the
-        // already-narrowed list. Saves work when the user types char by char.
-        const extending = lastReferencesQuery && query.toLowerCase().startsWith(lastReferencesQuery.toLowerCase());
-        const source = extending ? grepMatches : referencesAll;
-        // Single fzy pass produces both the match decision and positions, then we sort
-        // by score so the best matches surface first — same shape as fzf/telescope.nvim.
-        const scored = [];
-        for (const m of source) {
-            const r = fzyMatch(query, `${m.file}:${m.text}`);
-            if (r.matched) scored.push({ m, score: r.score, positions: r.positions });
-        }
-        scored.sort((a, b) => b.score - a.score);
-        grepMatches = scored.map(s => s.m);
-        referencePositions = scored.map(s => s.positions);
-    }
-    lastReferencesQuery = query;
+    const result = pickerUIRegistry.references.filter(
+        query,
+        referencesAll,
+        { query: lastReferencesQuery, items: grepMatches },
+    );
+    grepMatches = result.items;
+    referencePositions = result.positions ?? [];
+    lastReferencesQuery = result.query;
     currentFiltered = !!query;
     selectedIdx = 0;
     resultsList.scrollTop = 0;
