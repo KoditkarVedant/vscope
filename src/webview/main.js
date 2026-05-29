@@ -2,6 +2,7 @@
 /// <reference lib="dom" />
 
 import { fzyMatch } from '../algos/fzy';
+import { pickerUIRegistry } from './pickers';
 
 const vscode = acquireVsCodeApi();
 
@@ -444,6 +445,9 @@ function splitRefDisplayPositions(positions, m) {
     return { loc, text, dir };
 }
 
+// Helper bundle handed to per-picker UIs via the render ctx.
+const uiHelpers = { escHtml, highlightChars, fuzzyPositions, basename, dirPart, extBadge };
+
 // ── Row builder ───────────────────────────────────────────────────────────────
 
 function buildRow(i) {
@@ -479,33 +483,8 @@ function buildRow(i) {
             row.appendChild(d);
         }
     } else {
-        const file = results[i];
-
-        const ext = extBadge(file);
-        if (ext) {
-            const badge = document.createElement('span');
-            badge.className = 'ext-badge';
-            badge.textContent = ext;
-            row.appendChild(badge);
-        }
-
-        const positions  = fuzzyPositions(currentQuery, file);
-        const nameStart  = file.lastIndexOf('/') + 1;
-        const namePosns  = positions.filter(p => p >= nameStart).map(p => p - nameStart);
-        const dirPosns   = positions.filter(p => p < nameStart);
-
-        const name = document.createElement('span');
-        name.className = 'file-name';
-        name.innerHTML = highlightChars(basename(file), namePosns);
-        row.appendChild(name);
-
-        const dir = dirPart(file);
-        if (dir) {
-            const d = document.createElement('span');
-            d.className = 'file-dir';
-            d.innerHTML = highlightChars(dir, dirPosns);
-            row.appendChild(d);
-        }
+        const ui = pickerUIRegistry[mode];
+        ui.buildRow(row, i, { items: results, query: currentQuery, helpers: uiHelpers });
     }
 
     row.addEventListener('click', () => {
