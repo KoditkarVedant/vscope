@@ -2,13 +2,10 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { SearchEngine } from './SearchEngine';
 import { PreviewProvider } from './PreviewProvider';
-import { getReferences } from './finders/references';
 import type { PanelMode } from './messages';
+import type { ReferencesContext } from './pickers';
 
-export interface ReferenceContext {
-    uri: vscode.Uri;
-    position: vscode.Position;
-}
+export type ReferenceContext = ReferencesContext;
 
 export class FzfPanel {
     public static currentPanel: FzfPanel | undefined;
@@ -16,7 +13,6 @@ export class FzfPanel {
     private readonly _panel: vscode.WebviewPanel;
     private readonly _search: SearchEngine;
     private readonly _preview: PreviewProvider;
-    private readonly _workspaceRoot: string;
     private _disposables: vscode.Disposable[] = [];
 
     public static createOrShow(
@@ -69,7 +65,6 @@ export class FzfPanel {
         mode: PanelMode
     ) {
         this._panel = panel;
-        this._workspaceRoot = workspaceRoot;
 
         const post = (msg: object) => this._panel.webview.postMessage(msg);
         this._search  = new SearchEngine(workspaceRoot, post, mode);
@@ -100,11 +95,8 @@ export class FzfPanel {
     }
 
     private async _enterReferencesMode(ctx: ReferenceContext): Promise<void> {
-        this._search.setMode('references');
         this._panel.webview.postMessage({ type: 'setMode', mode: 'references' });
-        this._search.beginReferencesLoading();
-        const matches = await getReferences(ctx.uri, ctx.position, this._workspaceRoot);
-        this._search.loadReferences(matches);
+        await this._search.runReferences(ctx);
     }
 
     public postToWebview(msg: object): void {

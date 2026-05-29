@@ -1,7 +1,6 @@
-import type { GrepMatch } from './messages';
 import { logError } from './logger';
-import type { PanelMode, ToWebviewMessage } from './messages';
-import { createPickerRegistry, type PickerRegistry } from './pickers';
+import type { GrepMatch, PanelMode, ToWebviewMessage } from './messages';
+import { createPickerRegistry, type PickerRegistry, type ReferencesContext } from './pickers';
 
 export class SearchEngine {
     private _mode:        PanelMode;
@@ -43,19 +42,28 @@ export class SearchEngine {
     }
 
     /**
-     * Show the loading spinner before the (async) LSP call begins.
+     * Load the references snapshot for a given symbol position. Shows a loading
+     * spinner while the LSP call is in flight, then streams the full snapshot to
+     * the webview — which owns the per-keystroke filter from this point on.
      */
-    beginReferencesLoading(): void {
+    async runReferences(ctx: ReferencesContext): Promise<void> {
+        this._mode = 'references';
+        this._cancelActive();
+        const ctrl = new AbortController();
+        this._activeAbort = ctrl;
+        const { signal } = ctrl;
         const qid = ++this._queryId;
-        this._post({ type: 'resultsReset', queryId: qid, mode: 'references', query: '', filtered: true, total: 0 });
-    }
 
-    /**
-     * Stream the references snapshot to the webview, which owns the per-keystroke
-     * filter from this point on. The host stays out of the loop until the panel closes.
-     */
-    loadReferences(matches: GrepMatch[]): void {
-        const qid = ++this._queryId;
+        this._post({ type: 'resultsReset', queryId: qid, mode: 'references', query: '', filtered: true, total: 0 });
+
+        let matches: GrepMatch[] = [];
+        try {
+            matches = await this._registry.references.load!(ctx, signal);
+        } catch (err) {
+            logError('runReferences', err);
+        }
+        if (signal.aborted || qid !== this._queryId) return;
+
         this._post({ type: 'resultsReset', queryId: qid, mode: 'references', query: '', filtered: false, total: matches.length });
         if (matches.length > 0) {
             this._post({ type: 'resultsAppend', queryId: qid, mode: 'references', items: matches, total: matches.length });
@@ -119,7 +127,7 @@ export class SearchEngine {
 
         let items: string[] = [];
         try {
-            for await (const chunk of this._registry.files.query(value, signal)) {
+            for await (const chunk of this._registry.files.query!(value, signal)) {
                 if (signal.aborted || qid !== this._queryId) return;
                 items = chunk;
             }
@@ -138,7 +146,7 @@ export class SearchEngine {
 
         try {
             let total = 0;
-            for await (const matches of this._registry.grep.query(value, signal)) {
+            for await (const matches of this._registry.grep.query!(value, signal)) {
                 if (signal.aborted || qid !== this._queryId) return;
                 total += matches.length;
                 this._post({ type: 'resultsAppend', queryId: qid, mode: 'grep', items: matches, total });
