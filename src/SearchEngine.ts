@@ -1,4 +1,3 @@
-import { runGrep } from './finders/text';
 import type { GrepMatch } from './messages';
 import { logError } from './logger';
 import type { PanelMode, ToWebviewMessage } from './messages';
@@ -139,7 +138,7 @@ export class SearchEngine {
 
         try {
             let total = 0;
-            for await (const matches of runGrep(value, this._workspaceRoot, signal)) {
+            for await (const matches of this._registry.grep.query(value, signal)) {
                 if (signal.aborted || qid !== this._queryId) return;
                 total += matches.length;
                 this._post({ type: 'resultsAppend', queryId: qid, mode: 'grep', items: matches, total });
