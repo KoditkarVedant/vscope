@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.0.6
+
+### New
+
+- **Find LSP References** picker (`alt+; r`, command `VScope: Find LSP References`) — open a Telescope-style list of references to the symbol under the cursor, with live fuzzy filtering and the same preview pane as the other pickers
+- References are ranked by the [fzy](https://github.com/jhawthorn/fzy) scoring algorithm (the same one telescope.nvim uses) and matched characters are highlighted across file path, location, and the matched line
+
+### Improvements
+
+- Unified row colors across file, grep, and references pickers — location and path are muted, primary text uses the active theme's foreground
+
 ## 0.0.5
 
 ### New

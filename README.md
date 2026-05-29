@@ -8,6 +8,7 @@ Fuzzy file search and live grep for VS Code, powered by [fzf](https://github.com
 
 - **Fuzzy file search** — find files by name across your workspace with fzf ranking
 - **Live grep** — search file contents with ripgrep as you type
+- **Find LSP references** — list every reference to the symbol under the cursor, filtered by an in-process fzy scorer
 - **Syntax-highlighted preview** — renders the selected file using your active VS Code theme
 - **Split panel UI** — resizable file list and preview pane, draggable divider
 - **Virtualized list** — handles large workspaces without slowdown
@@ -23,6 +24,7 @@ Fuzzy file search and live grep for VS Code, powered by [fzf](https://github.com
 |---|---|
 | Open file search | `alt+; f` |
 | Open live grep | `alt+; g` |
+| Find LSP references (symbol under cursor) | `alt+; r` |
 | Move selection down / up | `ctrl+n` / `ctrl+p` |
 | Scroll preview down / up | `ctrl+d` / `ctrl+u` |
 | Scroll preview left / right | `ctrl+f` / `ctrl+k` |
