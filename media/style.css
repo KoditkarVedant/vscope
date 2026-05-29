@@ -332,12 +332,15 @@ body.inactive .result-row.selected {
 }
 
 /* ── Grep result rows ─────────────────────────────────────────────────────── */
+/* Color treatment mirrors files-mode rows: loc is muted like .file-dir, text
+   uses the same primary foreground as .file-name. Monospace font is kept for
+   both since the content is code/path. */
 
 .grep-loc {
   flex-shrink: 0;
   font-family: var(--vscode-editor-font-family, monospace);
   font-size: 0.85em;
-  color: var(--vscode-terminal-ansiBrightCyan, #4ec9b0);
+  color: var(--vscode-descriptionForeground, #858585);
   white-space: nowrap;
   min-width: 0;
 }
@@ -349,16 +352,14 @@ body.inactive .result-row.selected {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--vscode-editor-foreground, #cccccc);
+  color: var(--vscode-foreground, #e0e0e0);
 }
 
-.result-row.selected .grep-loc,
-.result-row:hover .grep-loc {
-  color: var(--vscode-list-activeSelectionForeground, #fff);
-  opacity: 0.8;
+.result-row.selected .grep-loc {
+  color: var(--vscode-list-activeSelectionForeground, #ffffff);
+  opacity: 0.7;
 }
 
-.result-row.selected .grep-text,
-.result-row:hover .grep-text {
-  color: var(--vscode-list-activeSelectionForeground, #fff);
+.result-row.selected .grep-text {
+  color: var(--vscode-list-activeSelectionForeground, #ffffff);
 }
