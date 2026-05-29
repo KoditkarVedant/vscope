@@ -2,6 +2,7 @@
 /// <reference lib="dom" />
 
 import { filesUI } from './files/ui';
+import { grepUI } from './grep/ui';
 
 /**
  * Per-picker helpers passed from main.js into each UI. Each UI uses only the
@@ -11,6 +12,7 @@ import { filesUI } from './files/ui';
  * @typedef {Object} PickerUIHelpers
  * @property {(s: string) => string} escHtml
  * @property {(s: string, positions: number[]) => string} highlightChars
+ * @property {(s: string, query: string) => string} highlightSubstring
  * @property {(query: string, str: string) => number[]} fuzzyPositions
  * @property {(p: string) => string} basename
  * @property {(p: string) => string} dirPart
@@ -36,5 +38,6 @@ import { filesUI } from './files/ui';
 /** @type {Record<string, PickerUI>} */
 export const pickerUIRegistry = {
     files: filesUI,
-    // grep and references will join this registry in follow-up commits.
+    grep:  grepUI,
+    // references will join this registry in the next commit.
 };

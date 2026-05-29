@@ -446,7 +446,7 @@ function splitRefDisplayPositions(positions, m) {
 }
 
 // Helper bundle handed to per-picker UIs via the render ctx.
-const uiHelpers = { escHtml, highlightChars, fuzzyPositions, basename, dirPart, extBadge };
+const uiHelpers = { escHtml, highlightChars, highlightSubstring, fuzzyPositions, basename, dirPart, extBadge };
 
 // ── Row builder ───────────────────────────────────────────────────────────────
 
@@ -455,36 +455,35 @@ function buildRow(i) {
     row.className = 'result-row' + (i === selectedIdx ? ' selected' : '');
     row.dataset.index = String(i);
 
-    if (mode === 'grep' || mode === 'references') {
+    if (mode === 'references') {
         const m = grepMatches[i];
         // Positions were produced by the fzy scorer alongside the filter decision;
         // splitting just routes them onto each displayed span.
-        const refPos = mode === 'references' ? splitRefDisplayPositions(referencePositions[i], m) : null;
+        const refPos = splitRefDisplayPositions(referencePositions[i], m);
 
         const loc = document.createElement('span');
         loc.className = 'grep-loc';
         const locDisplay = `${basename(m.file)}:${m.line}`;
-        loc.innerHTML = refPos ? highlightChars(locDisplay, refPos.loc) : escHtml(locDisplay);
+        loc.innerHTML = highlightChars(locDisplay, refPos.loc);
         row.appendChild(loc);
 
         const text = document.createElement('span');
         text.className = 'grep-text';
         const visibleText = m.text.trimStart();
-        text.innerHTML = mode === 'grep'
-            ? highlightSubstring(visibleText, currentQuery)
-            : highlightChars(visibleText, refPos ? refPos.text : []);
+        text.innerHTML = highlightChars(visibleText, refPos.text);
         row.appendChild(text);
 
         const dir = dirPart(m.file);
         if (dir) {
             const d = document.createElement('span');
             d.className = 'file-dir';
-            d.innerHTML = refPos ? highlightChars(dir, refPos.dir) : escHtml(dir);
+            d.innerHTML = highlightChars(dir, refPos.dir);
             row.appendChild(d);
         }
     } else {
         const ui = pickerUIRegistry[mode];
-        ui.buildRow(row, i, { items: results, query: currentQuery, helpers: uiHelpers });
+        const items = mode === 'grep' ? grepMatches : results;
+        ui.buildRow(row, i, { items, query: currentQuery, helpers: uiHelpers });
     }
 
     row.addEventListener('click', () => {
