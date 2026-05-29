@@ -172,7 +172,9 @@
     "package": "vsce package",
     "compile": "node esbuild.js",
     "watch": "node esbuild.js --watch",
-    "check-types": "tsc --noEmit"
+    "check-types": "tsc --noEmit",
+    "build:tests": "node esbuild.tests.js",
+    "test": "npm run build:tests && node --test out/tests/"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",
