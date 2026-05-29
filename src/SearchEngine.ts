@@ -1,14 +1,14 @@
-import { streamFiles } from './finders/files';
-import { fuzzyFiles } from './finders/fuzzyFiles';
 import { runGrep } from './finders/text';
 import type { GrepMatch } from './messages';
 import { logError } from './logger';
 import type { PanelMode, ToWebviewMessage } from './messages';
+import { createPickerRegistry, type PickerRegistry } from './pickers';
 
 export class SearchEngine {
     private _mode:        PanelMode;
     private _queryId      = 0;
     private _activeAbort: AbortController | null = null;
+    private readonly _registry: PickerRegistry;
 
     constructor(
         private readonly _workspaceRoot: string,
@@ -16,6 +16,7 @@ export class SearchEngine {
         initialMode: PanelMode
     ) {
         this._mode = initialMode;
+        this._registry = createPickerRegistry(_workspaceRoot);
     }
 
     get mode(): PanelMode { return this._mode; }
@@ -100,9 +101,11 @@ export class SearchEngine {
 
     private async _streamBrowse(qid: number, signal: AbortSignal): Promise<void> {
         this._post({ type: 'resultsReset', queryId: qid, mode: 'files', query: '', filtered: false, total: 0 });
+        const source = this._registry.files;
+        if (!source.browse) return;
         let total = 0;
         try {
-            for await (const chunk of streamFiles(this._workspaceRoot, signal)) {
+            for await (const chunk of source.browse(signal)) {
                 if (signal.aborted || qid !== this._queryId) return;
                 total += chunk.length;
                 this._post({ type: 'resultsAppend', queryId: qid, mode: 'files', items: chunk, total });
@@ -115,7 +118,16 @@ export class SearchEngine {
     private async _runFuzzyFiles(value: string, qid: number, signal: AbortSignal): Promise<void> {
         this._post({ type: 'resultsLoading', queryId: qid, query: value });
 
-        const items = await fuzzyFiles(this._workspaceRoot, value, signal);
+        let items: string[] = [];
+        try {
+            for await (const chunk of this._registry.files.query(value, signal)) {
+                if (signal.aborted || qid !== this._queryId) return;
+                items = chunk;
+            }
+        } catch (err) {
+            logError('runFuzzyFiles', err);
+            return;
+        }
         if (signal.aborted || qid !== this._queryId) return;
 
         this._post({ type: 'resultsReplace', queryId: qid, mode: 'files', items, total: items.length });
