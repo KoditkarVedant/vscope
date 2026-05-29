@@ -26,7 +26,8 @@ const problemMatcherPlugin = {
 };
 
 async function main() {
-    const ctx = await esbuild.context({
+    // Extension host bundle — runs in VS Code's Node process.
+    const hostCtx = await esbuild.context({
         entryPoints: ['src/extension.ts'],
         bundle:      true,
         format:      'cjs',
@@ -40,11 +41,26 @@ async function main() {
         plugins:     [problemMatcherPlugin],
     });
 
+    // Webview bundle — runs in the Chromium webview. IIFE so the output is a single
+    // classic script with no module syntax, which lets the CSP stay nonce-only (no
+    // strict-dynamic) and the script tag stay plain `<script src=...>`.
+    const webviewCtx = await esbuild.context({
+        entryPoints: ['src/webview/main.js'],
+        bundle:      true,
+        format:      'iife',
+        platform:    'browser',
+        target:      'es2020',
+        outfile:     'out/webview/main.js',
+        sourcemap:   !production,
+        minify:      production,
+        logLevel:    'info',
+    });
+
     if (watch) {
-        await ctx.watch();
+        await Promise.all([hostCtx.watch(), webviewCtx.watch()]);
     } else {
-        await ctx.rebuild();
-        await ctx.dispose();
+        await Promise.all([hostCtx.rebuild(), webviewCtx.rebuild()]);
+        await Promise.all([hostCtx.dispose(), webviewCtx.dispose()]);
     }
 }
 

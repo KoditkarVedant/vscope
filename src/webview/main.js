@@ -1,6 +1,8 @@
 // @ts-check
 /// <reference lib="dom" />
 
+import { fzyMatch } from '../algos/fzy';
+
 const vscode = acquireVsCodeApi();
 
 // ── Config ────────────────────────────────────────────────────────────────────
@@ -78,6 +80,14 @@ let grepMatches = [];
  * @type {Array<{file:string, line:number, col:number, length?:number, text:string}>}
  */
 let referencesAll = [];
+
+/**
+ * Matched positions in the `${file}:${text}` haystack for each entry in grepMatches
+ * during references mode, produced by the fzy scorer in the same pass as the filter.
+ * Indices align with grepMatches; empty array when no query is active.
+ * @type {number[][]}
+ */
+let referencePositions = [];
 
 /** Last query the references filter ran against — drives the prefix-narrowing fast path. */
 let lastReferencesQuery = '';
@@ -407,6 +417,33 @@ function highlightSubstring(str, query) {
         + escHtml(str.slice(idx + query.length));
 }
 
+// Distributes haystack-space match positions onto the three displayed spans of a
+// references row: basename (loc), visible text, and dir.
+function splitRefDisplayPositions(positions, m) {
+    if (!positions || !positions.length) return { loc: [], text: [], dir: [] };
+    const nameStart = m.file.lastIndexOf('/') + 1;
+    const fileLen = m.file.length;
+    const textStart = fileLen + 1; // skip the ':' separator
+    const visibleText = m.text.trimStart();
+    const trimOffset = m.text.length - visibleText.length;
+
+    const loc = [];
+    const text = [];
+    const dir = [];
+    for (const p of positions) {
+        if (p < nameStart) {
+            // Drop the path separator at nameStart-1 — not part of the dir span.
+            if (p < nameStart - 1) dir.push(p);
+        } else if (p < fileLen) {
+            loc.push(p - nameStart);
+        } else if (p > fileLen) {
+            const tp = p - textStart - trimOffset;
+            if (tp >= 0 && tp < visibleText.length) text.push(tp);
+        }
+    }
+    return { loc, text, dir };
+}
+
 // ── Row builder ───────────────────────────────────────────────────────────────
 
 function buildRow(i) {
@@ -416,26 +453,29 @@ function buildRow(i) {
 
     if (mode === 'grep' || mode === 'references') {
         const m = grepMatches[i];
+        // Positions were produced by the fzy scorer alongside the filter decision;
+        // splitting just routes them onto each displayed span.
+        const refPos = mode === 'references' ? splitRefDisplayPositions(referencePositions[i], m) : null;
 
         const loc = document.createElement('span');
         loc.className = 'grep-loc';
-        loc.textContent = `${basename(m.file)}:${m.line}`;
+        const locDisplay = `${basename(m.file)}:${m.line}`;
+        loc.innerHTML = refPos ? highlightChars(locDisplay, refPos.loc) : escHtml(locDisplay);
         row.appendChild(loc);
 
         const text = document.createElement('span');
         text.className = 'grep-text';
-        // Grep matches the literal query in the text; references filter is a fuzzy
-        // subsequence match that can't be substring-highlighted cleanly, so skip it.
+        const visibleText = m.text.trimStart();
         text.innerHTML = mode === 'grep'
-            ? highlightSubstring(m.text.trimStart(), currentQuery)
-            : escHtml(m.text.trimStart());
+            ? highlightSubstring(visibleText, currentQuery)
+            : highlightChars(visibleText, refPos ? refPos.text : []);
         row.appendChild(text);
 
         const dir = dirPart(m.file);
         if (dir) {
             const d = document.createElement('span');
             d.className = 'file-dir';
-            d.textContent = dir;
+            d.innerHTML = refPos ? highlightChars(dir, refPos.dir) : escHtml(dir);
             row.appendChild(d);
         }
     } else {
@@ -534,6 +574,7 @@ window.addEventListener('message', ({ data: msg }) => {
         results = [];
         grepMatches = [];
         referencesAll = [];
+        referencePositions = [];
         lastReferencesQuery = '';
         currentTotal = msg.total;
         selectedIdx = 0;
@@ -556,6 +597,7 @@ window.addEventListener('message', ({ data: msg }) => {
         appendQueue.clear();
         if (msg.mode === 'grep' || msg.mode === 'references') {
             grepMatches = /** @type {any[]} */ (msg.items);
+            referencePositions = [];
             results = [];
             currentTotal = msg.total;
         } else {
@@ -625,12 +667,22 @@ function filterReferencesLocally(query) {
     currentQuery = query;
     if (!query) {
         grepMatches = referencesAll.slice();
+        referencePositions = [];
     } else {
         // Prefix-narrowing: if the new query extends the last one, filter the
         // already-narrowed list. Saves work when the user types char by char.
         const extending = lastReferencesQuery && query.toLowerCase().startsWith(lastReferencesQuery.toLowerCase());
         const source = extending ? grepMatches : referencesAll;
-        grepMatches = source.filter((m) => subseqMatches(query, `${m.file}:${m.text}`));
+        // Single fzy pass produces both the match decision and positions, then we sort
+        // by score so the best matches surface first — same shape as fzf/telescope.nvim.
+        const scored = [];
+        for (const m of source) {
+            const r = fzyMatch(query, `${m.file}:${m.text}`);
+            if (r.matched) scored.push({ m, score: r.score, positions: r.positions });
+        }
+        scored.sort((a, b) => b.score - a.score);
+        grepMatches = scored.map(s => s.m);
+        referencePositions = scored.map(s => s.positions);
     }
     lastReferencesQuery = query;
     currentFiltered = !!query;
@@ -640,19 +692,6 @@ function filterReferencesLocally(query) {
     virt.invalidate();
     virt.setCount(grepMatches.length);
     schedulePreview();
-}
-
-// Case-insensitive subsequence match — same predicate the extension was using before
-// we moved filtering client-side. Matches the algorithm telescope.nvim's fzy uses
-// for membership (scoring is a future enhancement).
-function subseqMatches(needle, haystack) {
-    const n = needle.toLowerCase();
-    const h = haystack.toLowerCase();
-    let i = 0;
-    for (let j = 0; j < h.length && i < n.length; j++) {
-        if (h[j] === n[i]) i++;
-    }
-    return i === n.length;
 }
 
 function applyMode(newMode) {
@@ -667,6 +706,7 @@ function applyMode(newMode) {
     results = [];
     grepMatches = [];
     referencesAll = [];
+    referencePositions = [];
     lastReferencesQuery = '';
     selectedIdx = 0;
     lastQueryId = -1;

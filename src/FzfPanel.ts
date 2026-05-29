@@ -46,7 +46,10 @@ export class FzfPanel {
             vscode.ViewColumn.One,
             {
                 enableScripts: true,
-                localResourceRoots: [vscode.Uri.joinPath(context.extensionUri, 'media')],
+                localResourceRoots: [
+                    vscode.Uri.joinPath(context.extensionUri, 'media'),
+                    vscode.Uri.joinPath(context.extensionUri, 'out', 'webview'),
+                ],
                 retainContextWhenHidden: true,
             }
         );
@@ -169,7 +172,7 @@ export class FzfPanel {
     private _buildHtml(extensionUri: vscode.Uri): string {
         const webview = this._panel.webview;
         const nonce = getNonce();
-        const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'main.js'));
+        const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'out', 'webview', 'main.js'));
         const styleUri  = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, 'media', 'style.css'));
 
         return `<!DOCTYPE html>
